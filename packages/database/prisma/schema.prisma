@@ -1,0 +1,656 @@
+// Prisma Schema for TachyHealth Autonomous Client Onboarding System
+// Based on BRD Section 8.3 - Data Models & Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===========================================
+// User Management
+// ===========================================
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  role          UserRole  @default(SALES_REP)
+  phone         String?
+  timezone      String    @default("UTC")
+  isActive      Boolean   @default(true)
+  lastLoginAt   DateTime?
+  mfaEnabled    Boolean   @default(false)
+  mfaSecret     String?
+  preferences   Json?     @default("{}")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+
+  // Relations
+  assignedLeads  Lead[]
+  activities     Activity[]
+  notes          Note[]
+  sessions       Session[]
+
+  @@index([email])
+  @@index([role])
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  SALES_REP
+  READ_ONLY
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  userId       String
+  refreshToken String   @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([refreshToken])
+}
+
+// ===========================================
+// Lead Management
+// ===========================================
+
+model Lead {
+  id              String      @id @default(uuid())
+  email           String
+  firstName       String
+  lastName        String
+  companyName     String
+  companyDomain   String?
+  phone           String?
+  jobTitle        String?
+  industry        String?
+  country         String?     @db.VarChar(2) // ISO 3166-1 alpha-2
+  region          String?
+  city            String?
+  timezone        String?
+  
+  // Scoring & Classification
+  score           Int         @default(0)
+  scoreBreakdown  Json?       // { companySize: 20, industryFit: 15, ... }
+  scoreConfidence Float?      @default(0)
+  stage           LeadStage   @default(NEW)
+  status          LeadStatus  @default(ACTIVE)
+  category        LeadCategory?
+  intent          LeadIntent?
+  
+  // Deal Information
+  estimatedValue  Decimal?    @db.Decimal(12, 2)
+  dealSize        DealSize?
+  expectedCloseDate DateTime?
+  
+  // Source & Attribution
+  source          String      // web_form, email, linkedin, whatsapp, api
+  sourceDetail    String?     // Campaign name, referral source, etc.
+  utmSource       String?
+  utmMedium       String?
+  utmCampaign     String?
+  landingPage     String?
+  
+  // Assignment & Ownership
+  assignedToId    String?
+  assignedAt      DateTime?
+  
+  // AI & Enrichment Data
+  enrichedData    Json?       // Clearbit, Hunter.io data
+  aiInsights      Json?       // AI-generated insights
+  customFields    Json?       // User-defined fields
+  metadata        Json?       // System metadata
+  
+  // Message & Inquiry
+  originalMessage String?     @db.Text
+  productsOfInterest String[] // AiReview, AiAxon, RMS
+  
+  // Timestamps
+  lastActivityAt  DateTime?
+  lastContactedAt DateTime?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  deletedAt       DateTime?
+  
+  // Relations
+  assignedTo      User?       @relation(fields: [assignedToId], references: [id])
+  activities      Activity[]
+  notes           Note[]
+  documents       Document[]
+  meetings        Meeting[]
+  communications  Communication[]
+  stageHistory    StageHistory[]
+
+  @@unique([email, deletedAt])
+  @@index([email])
+  @@index([companyDomain])
+  @@index([score])
+  @@index([stage])
+  @@index([status])
+  @@index([source])
+  @@index([assignedToId])
+  @@index([industry])
+  @@index([country])
+  @@index([createdAt])
+  @@index([assignedToId, stage, createdAt])
+}
+
+enum LeadStage {
+  NEW
+  QUALIFYING
+  HOT_ENGAGED
+  WARM_NURTURING
+  COLD_ARCHIVED
+  MEETING_SCHEDULED
+  DISCOVERY_COMPLETE
+  PROPOSAL_SENT
+  NEGOTIATION
+  CONTRACT_STAGE
+  CLOSED_WON
+  CLOSED_LOST
+  DISQUALIFIED
+  UNSUBSCRIBED
+}
+
+enum LeadStatus {
+  ACTIVE
+  ARCHIVED
+  WON
+  LOST
+}
+
+enum LeadCategory {
+  HOT
+  WARM
+  COLD
+  UNQUALIFIED
+}
+
+enum LeadIntent {
+  DEMO_REQUEST
+  PRICING_INQUIRY
+  PARTNERSHIP
+  TECHNICAL_QUESTION
+  SUPPORT
+  GENERAL
+}
+
+enum DealSize {
+  SMALL        // < $50K
+  MEDIUM       // $50K - $200K
+  LARGE        // > $200K
+}
+
+model StageHistory {
+  id          String    @id @default(uuid())
+  leadId      String
+  fromStage   LeadStage?
+  toStage     LeadStage
+  reason      String?
+  changedById String?
+  automated   Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([createdAt])
+}
+
+// ===========================================
+// Activity & Communication Tracking
+// ===========================================
+
+model Activity {
+  id           String       @id @default(uuid())
+  leadId       String
+  type         ActivityType
+  channel      Channel?
+  subject      String?
+  content      String?      @db.Text
+  metadata     Json?        // Additional data (email tracking, etc.)
+  automated    Boolean      @default(false)
+  performedById String?
+  createdAt    DateTime     @default(now())
+
+  lead        Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  performedBy User? @relation(fields: [performedById], references: [id])
+
+  @@index([leadId])
+  @@index([type])
+  @@index([createdAt])
+  @@index([leadId, createdAt(sort: Desc)])
+}
+
+enum ActivityType {
+  EMAIL_SENT
+  EMAIL_RECEIVED
+  EMAIL_OPENED
+  EMAIL_CLICKED
+  EMAIL_BOUNCED
+  CALL_MADE
+  CALL_RECEIVED
+  MEETING_SCHEDULED
+  MEETING_HELD
+  MEETING_CANCELLED
+  MEETING_NO_SHOW
+  NOTE_ADDED
+  STAGE_CHANGED
+  SCORE_UPDATED
+  DOCUMENT_SENT
+  DOCUMENT_VIEWED
+  DOCUMENT_SIGNED
+  TASK_CREATED
+  TASK_COMPLETED
+  WHATSAPP_SENT
+  WHATSAPP_RECEIVED
+  SMS_SENT
+  LINKEDIN_CONNECTED
+  ASSIGNMENT_CHANGED
+  LEAD_CREATED
+  LEAD_ENRICHED
+  WORKFLOW_TRIGGERED
+}
+
+enum Channel {
+  EMAIL
+  PHONE
+  WHATSAPP
+  LINKEDIN
+  SMS
+  VIDEO
+  IN_PERSON
+  WEB
+}
+
+model Note {
+  id          String   @id @default(uuid())
+  leadId      String
+  content     String   @db.Text
+  isPrivate   Boolean  @default(false)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lead      Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdBy User @relation(fields: [createdById], references: [id])
+
+  @@index([leadId])
+  @@index([createdAt])
+}
+
+model Communication {
+  id              String              @id @default(uuid())
+  leadId          String
+  channel         Channel
+  direction       CommunicationDirection
+  subject         String?
+  content         String?             @db.Text
+  htmlContent     String?             @db.Text
+  templateId      String?
+  status          CommunicationStatus @default(PENDING)
+  scheduledAt     DateTime?
+  sentAt          DateTime?
+  deliveredAt     DateTime?
+  openedAt        DateTime?
+  clickedAt       DateTime?
+  bouncedAt       DateTime?
+  errorMessage    String?
+  externalId      String?             // SendGrid message ID, etc.
+  trackingData    Json?               // Opens, clicks, etc.
+  metadata        Json?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  lead     Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  template Template? @relation(fields: [templateId], references: [id])
+
+  @@index([leadId])
+  @@index([status])
+  @@index([channel])
+  @@index([sentAt])
+  @@index([externalId])
+}
+
+enum CommunicationDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum CommunicationStatus {
+  PENDING
+  SCHEDULED
+  SENDING
+  SENT
+  DELIVERED
+  OPENED
+  CLICKED
+  BOUNCED
+  FAILED
+  CANCELLED
+}
+
+// ===========================================
+// Templates & Sequences
+// ===========================================
+
+model Template {
+  id          String       @id @default(uuid())
+  name        String
+  type        TemplateType
+  subject     String?
+  content     String       @db.Text
+  htmlContent String?      @db.Text
+  variables   String[]     // List of variables: firstName, companyName, etc.
+  language    String       @default("en")
+  isActive    Boolean      @default(true)
+  category    String?      // nurture, follow-up, proposal, etc.
+  metadata    Json?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  communications Communication[]
+  sequenceSteps  SequenceStep[]
+
+  @@index([type])
+  @@index([isActive])
+}
+
+enum TemplateType {
+  EMAIL
+  SMS
+  WHATSAPP
+  PROPOSAL
+  CONTRACT
+  INVOICE
+}
+
+model Sequence {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  trigger     String?  // lead_created, stage_changed, etc.
+  isActive    Boolean  @default(true)
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  steps SequenceStep[]
+
+  @@index([isActive])
+}
+
+model SequenceStep {
+  id          String  @id @default(uuid())
+  sequenceId  String
+  templateId  String
+  stepOrder   Int
+  delayDays   Int     @default(0)
+  delayHours  Int     @default(0)
+  condition   Json?   // { if: "score > 70", then: "continue" }
+  isActive    Boolean @default(true)
+
+  sequence Sequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  template Template @relation(fields: [templateId], references: [id])
+
+  @@index([sequenceId])
+  @@index([stepOrder])
+}
+
+// ===========================================
+// Meetings & Calendar
+// ===========================================
+
+model Meeting {
+  id              String        @id @default(uuid())
+  leadId          String
+  title           String
+  description     String?       @db.Text
+  meetingType     MeetingType   @default(DISCOVERY)
+  startTime       DateTime
+  endTime         DateTime
+  timezone        String        @default("UTC")
+  location        String?
+  videoLink       String?
+  videoProvider   VideoProvider?
+  externalEventId String?       // Google Calendar / Outlook event ID
+  status          MeetingStatus @default(SCHEDULED)
+  attendees       Json?         // [{ email, name, status }]
+  agenda          String?       @db.Text
+  notes           String?       @db.Text
+  recordingUrl    String?
+  outcome         String?
+  remindersSent   Int           @default(0)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([startTime])
+  @@index([status])
+}
+
+enum MeetingType {
+  DISCOVERY
+  DEMO
+  TECHNICAL
+  PROPOSAL_REVIEW
+  NEGOTIATION
+  KICKOFF
+  FOLLOW_UP
+}
+
+enum MeetingStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum VideoProvider {
+  ZOOM
+  GOOGLE_MEET
+  TEAMS
+  WEBEX
+}
+
+// ===========================================
+// Documents
+// ===========================================
+
+model Document {
+  id              String         @id @default(uuid())
+  leadId          String
+  type            DocumentType
+  title           String
+  version         Int            @default(1)
+  status          DocumentStatus @default(DRAFT)
+  fileUrl         String?
+  fileSize        Int?
+  mimeType        String?
+  templateId      String?
+  generatedData   Json?          // Input data for generation
+  signatureStatus SignatureStatus?
+  signedAt        DateTime?
+  signers         Json?          // [{ email, name, signedAt }]
+  externalId      String?        // DocuSign envelope ID
+  viewCount       Int            @default(0)
+  lastViewedAt    DateTime?
+  viewAnalytics   Json?          // { pages: [...], timeSpent: {} }
+  metadata        Json?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@index([type])
+  @@index([status])
+}
+
+enum DocumentType {
+  PROPOSAL
+  CONTRACT
+  INVOICE
+  PRESENTATION
+  CASE_STUDY
+  WHITEPAPER
+  QUOTE
+  OTHER
+}
+
+enum DocumentStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SENT
+  VIEWED
+  SIGNED
+  PAID
+  EXPIRED
+  REJECTED
+}
+
+enum SignatureStatus {
+  PENDING
+  SENT
+  DELIVERED
+  VIEWED
+  SIGNED
+  DECLINED
+  VOIDED
+  EXPIRED
+}
+
+// ===========================================
+// Workflow & Automation
+// ===========================================
+
+model Workflow {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  trigger     Json     // { event: "lead_created", conditions: [...] }
+  actions     Json     // [{ type: "send_email", config: {...} }]
+  isActive    Boolean  @default(true)
+  priority    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  executions WorkflowExecution[]
+
+  @@index([isActive])
+}
+
+model WorkflowExecution {
+  id          String          @id @default(uuid())
+  workflowId  String
+  leadId      String?
+  status      ExecutionStatus @default(PENDING)
+  triggeredBy String?
+  input       Json?
+  output      Json?
+  error       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime        @default(now())
+
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([workflowId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum ExecutionStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// ===========================================
+// Audit Log
+// ===========================================
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  entityType  String   // Lead, User, Meeting, etc.
+  entityId    String
+  action      String   // CREATE, UPDATE, DELETE, etc.
+  userId      String?
+  changes     Json?    // { before: {...}, after: {...} }
+  ipAddress   String?
+  userAgent   String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
+// ===========================================
+// Integrations Configuration
+// ===========================================
+
+model Integration {
+  id           String            @id @default(uuid())
+  type         IntegrationType
+  name         String
+  config       Json              // Encrypted configuration
+  credentials  Json?             // Encrypted credentials
+  status       IntegrationStatus @default(DISCONNECTED)
+  lastSyncAt   DateTime?
+  lastError    String?
+  syncEnabled  Boolean           @default(true)
+  metadata     Json?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@unique([type])
+  @@index([status])
+}
+
+enum IntegrationType {
+  HUBSPOT
+  SALESFORCE
+  SENDGRID
+  AWS_SES
+  GOOGLE_CALENDAR
+  OUTLOOK
+  ZOOM
+  TEAMS
+  DOCUSIGN
+  STRIPE
+  QUICKBOOKS
+  CLEARBIT
+  HUNTER
+}
+
+enum IntegrationStatus {
+  CONNECTED
+  DISCONNECTED
+  ERROR
+  SYNCING
+}

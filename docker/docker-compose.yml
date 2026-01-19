@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # PostgreSQL - Primary Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: tachyhealth-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tachyhealth
+      POSTGRES_PASSWORD: tachyhealth
+      POSTGRES_DB: tachyhealth_onboarding
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tachyhealth -d tachyhealth_onboarding"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis - Caching & Job Queue
+  redis:
+    image: redis:7-alpine
+    container_name: tachyhealth-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MongoDB - Document Store
+  mongodb:
+    image: mongo:7
+    container_name: tachyhealth-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh localhost:27017/test --quiet
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # MinIO - S3-Compatible Object Storage (for local dev)
+  minio:
+    image: minio/minio:latest
+    container_name: tachyhealth-minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+volumes:
+  postgres_data:
+  redis_data:
+  mongodb_data:
+  minio_data:

@@ -1,0 +1,48 @@
+{
+  "name": "tachyhealth-onboarding",
+  "version": "1.0.0",
+  "description": "TachyHealth Autonomous Client Onboarding System - AI-Powered Lead-to-Subscription Automation",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:worker": "npm run dev --workspace=apps/worker",
+    "build": "npm run build --workspaces",
+    "build:api": "npm run build --workspace=apps/api",
+    "build:web": "npm run build --workspace=apps/web",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "db:migrate": "npm run migrate --workspace=packages/database",
+    "db:generate": "npm run generate --workspace=packages/database",
+    "db:seed": "npm run seed --workspace=packages/database",
+    "docker:up": "docker-compose -f docker/docker-compose.yml up -d",
+    "docker:down": "docker-compose -f docker/docker-compose.yml down"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tachyhealth/onboarding-system.git"
+  },
+  "keywords": [
+    "tachyhealth",
+    "ai",
+    "crm",
+    "lead-management",
+    "automation",
+    "healthcare"
+  ],
+  "author": "TachyHealth",
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3"
+  }
+}

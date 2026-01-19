@@ -1,0 +1,25 @@
+{
+    "name": "@tachyhealth/database",
+    "version": "1.0.0",
+    "description": "Database schema and migrations for TachyHealth Onboarding",
+    "main": "dist/index.js",
+    "types": "dist/index.d.ts",
+    "scripts": {
+        "generate": "prisma generate",
+        "migrate": "prisma migrate dev",
+        "migrate:deploy": "prisma migrate deploy",
+        "migrate:reset": "prisma migrate reset --force",
+        "studio": "prisma studio",
+        "seed": "ts-node prisma/seed.ts",
+        "build": "tsc",
+        "postinstall": "prisma generate"
+    },
+    "dependencies": {
+        "@prisma/client": "^5.9.0"
+    },
+    "devDependencies": {
+        "prisma": "^5.9.0",
+        "ts-node": "^10.9.2",
+        "typescript": "^5.3.3"
+    }
+}
