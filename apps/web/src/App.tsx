@@ -11,6 +11,7 @@ import { CalendarPage } from './pages/CalendarPage';
 import { CommunicationsPage } from './pages/CommunicationsPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
+import { SettingsPage } from './pages/SettingsPage';
 import { NotificationProvider } from './components/NotificationProvider';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -43,6 +44,7 @@ function App() {
                 <Route path="communications" element={<CommunicationsPage />} />
                 <Route path="documents" element={<DocumentsPage />} />
                 <Route path="analytics" element={<AnalyticsPage />} />
+                <Route path="settings" element={<SettingsPage />} />
             </Route>
         </Routes>
     );

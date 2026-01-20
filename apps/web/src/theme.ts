@@ -1,45 +1,66 @@
 import { createTheme } from '@mui/material/styles';
 
-// TachyHealth brand colors - per BRD Section 7.9
+// Brand Gradient Colors
+export const brandColors = {
+    cyan: '#28aae2',
+    magenta: '#b83389',
+    teal: '#41b9bf',
+    purple: '#5d2983',
+    navy: '#29235c',
+};
+
+// Gradient definitions
+export const gradients = {
+    primary: `linear-gradient(135deg, ${brandColors.cyan} 0%, ${brandColors.teal} 50%, ${brandColors.magenta} 100%)`,
+    sidebar: `linear-gradient(180deg, ${brandColors.navy} 0%, ${brandColors.purple} 50%, ${brandColors.magenta} 100%)`,
+    accent: `linear-gradient(90deg, ${brandColors.cyan} 0%, ${brandColors.magenta} 100%)`,
+    logo: `linear-gradient(135deg, ${brandColors.cyan} 0%, ${brandColors.teal} 25%, ${brandColors.magenta} 50%, ${brandColors.purple} 75%, ${brandColors.navy} 100%)`,
+};
+
 export const theme = createTheme({
     palette: {
         mode: 'light',
         primary: {
-            main: '#1F4E78', // TachyHealth primary blue
-            light: '#2E75B6',
-            dark: '#163958',
+            main: brandColors.cyan,
+            light: '#86d1f3',
+            dark: '#0e6796',
             contrastText: '#ffffff',
         },
         secondary: {
-            main: '#2E75B6', // Teal accent
-            light: '#4A90C4',
-            dark: '#1F5A8A',
+            main: brandColors.magenta,
+            light: '#e284cb',
+            dark: '#9a2a70',
             contrastText: '#ffffff',
         },
         success: {
-            main: '#22C55E',
+            main: '#2AC769',
             light: '#4ADE80',
             dark: '#16A34A',
         },
         warning: {
-            main: '#F59E0B',
+            main: '#FFC107',
             light: '#FBBF24',
             dark: '#D97706',
         },
         error: {
-            main: '#EF4444',
+            main: '#DC3545',
             light: '#F87171',
             dark: '#DC2626',
         },
+        info: {
+            main: brandColors.teal,
+            light: '#86d7da',
+            dark: '#2c838e',
+        },
         background: {
-            default: '#F9FAFB',
+            default: '#f6f6f6',
             paper: '#FFFFFF',
         },
         text: {
-            primary: '#111827',
-            secondary: '#6B7280',
+            primary: brandColors.navy,
+            secondary: '#6d6d6d',
         },
-        divider: '#E5E7EB',
+        divider: '#e7e7e7',
     },
     typography: {
         fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -48,33 +69,39 @@ export const theme = createTheme({
             fontWeight: 700,
             lineHeight: 1.2,
             letterSpacing: '-0.02em',
+            color: '#080808',
         },
         h2: {
             fontSize: '2rem',
             fontWeight: 700,
             lineHeight: 1.2,
             letterSpacing: '-0.02em',
+            color: '#080808',
         },
         h3: {
             fontSize: '1.5rem',
             fontWeight: 600,
             lineHeight: 1.2,
             letterSpacing: '-0.02em',
+            color: '#080808',
         },
         h4: {
             fontSize: '1.25rem',
             fontWeight: 600,
             lineHeight: 1.2,
+            color: '#080808',
         },
         h5: {
             fontSize: '1rem',
             fontWeight: 600,
             lineHeight: 1.2,
+            color: '#080808',
         },
         h6: {
             fontSize: '0.875rem',
             fontWeight: 600,
             lineHeight: 1.2,
+            color: '#080808',
         },
         body1: {
             fontSize: '1rem',
@@ -160,11 +187,11 @@ export const theme = createTheme({
         MuiTableCell: {
             styleOverrides: {
                 root: {
-                    borderBottom: '1px solid #E5E7EB',
+                    borderBottom: '1px solid #e7e7e7',
                 },
                 head: {
                     fontWeight: 600,
-                    backgroundColor: '#F9FAFB',
+                    backgroundColor: '#f6f6f6',
                 },
             },
         },
