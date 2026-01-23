@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { RootState } from './store';
 import { MainLayout } from './layouts/MainLayout';
 import { LoginPage } from './pages/LoginPage';
+import { BookingPage } from './pages/BookingPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { LeadsPage } from './pages/LeadsPage';
 import { LeadDetailPage } from './pages/LeadDetailPage';
@@ -27,6 +28,9 @@ function App() {
     return (
         <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/book-demo" element={<BookingPage />} />
+
+            {/* Protected routes */}
             <Route
                 path="/"
                 element={

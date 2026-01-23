@@ -6,7 +6,9 @@ import { MicrosoftGraphService } from './microsoft-graph.service';
 import { AutoSchedulerService } from './auto-scheduler.service';
 import { NoShowDetectionService } from './no-show-detection.service';
 import { MeetingPrepService } from './meeting-prep.service';
+import { CalendarService } from './calendar.service';
 import { CalendarController } from './calendar.controller';
+import { PublicCalendarController } from './public-calendar.controller';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { CommunicationModule } from '../communication/communication.module';
 
@@ -23,13 +25,15 @@ import { CommunicationModule } from '../communication/communication.module';
         AutoSchedulerService,
         NoShowDetectionService,
         MeetingPrepService,
+        CalendarService,
     ],
-    controllers: [CalendarController],
+    controllers: [CalendarController, PublicCalendarController],
     exports: [
         MicrosoftGraphService,
         AutoSchedulerService,
         NoShowDetectionService,
         MeetingPrepService,
+        CalendarService,
     ],
 })
 export class CalendarModule { }

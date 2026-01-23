@@ -12,6 +12,7 @@ import {
     InputAdornment,
     Chip,
     Divider,
+    useTheme,
 } from '@mui/material';
 import {
     Search as SearchIcon,
@@ -39,6 +40,8 @@ interface CommandItem {
 }
 
 export function CommandPalette() {
+    const theme = useTheme();
+    const isDark = theme.palette.mode === 'dark';
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState('');
     const [selectedIndex, setSelectedIndex] = useState(0);
@@ -220,17 +223,21 @@ export function CommandPalette() {
             onClose={close}
             maxWidth="sm"
             fullWidth
+            fullScreen={window.innerWidth < 600} // Full screen on mobile
             PaperProps={{
                 sx: {
-                    background: 'rgba(255, 255, 255, 0.95)',
+                    background: isDark
+                        ? 'rgba(20, 20, 20, 0.97)'
+                        : 'rgba(255, 255, 255, 0.95)',
                     backdropFilter: 'blur(20px)',
-                    borderRadius: 3,
+                    borderRadius: { xs: 0, sm: 3 },
                     overflow: 'hidden',
-                    mt: -10,
+                    mt: { xs: 0, sm: -10 },
+                    height: { xs: '100%', sm: 'auto' },
                 },
             }}
         >
-            <Box sx={{ p: 2 }}>
+            <Box sx={{ p: { xs: 1.5, sm: 2 } }}>
                 <TextField
                     fullWidth
                     autoFocus
@@ -249,17 +256,20 @@ export function CommandPalette() {
                                 <Chip
                                     label="ESC"
                                     size="small"
+                                    onClick={close}
                                     sx={{
                                         fontSize: '0.7rem',
                                         height: 20,
                                         bgcolor: 'grey.200',
+                                        cursor: 'pointer',
                                     }}
                                 />
                             </InputAdornment>
                         ),
                         sx: {
                             borderRadius: 2,
-                            bgcolor: 'grey.50',
+                            bgcolor: isDark ? 'action.hover' : 'grey.50',
+                            py: { xs: 0.5, sm: 0 },
                         },
                     }}
                 />
@@ -267,7 +277,12 @@ export function CommandPalette() {
 
             <Divider />
 
-            <List sx={{ maxHeight: 400, overflow: 'auto', py: 1 }}>
+            <List sx={{
+                maxHeight: { xs: 'calc(100vh - 140px)', sm: 400 },
+                overflow: 'auto',
+                py: 1,
+                flex: 1,
+            }}>
                 {Object.entries(groupedCommands).map(([category, items]) => (
                     <Box key={category}>
                         <Typography
@@ -295,6 +310,7 @@ export function CommandPalette() {
                                         cursor: 'pointer',
                                         mx: 1,
                                         borderRadius: 2,
+                                        py: { xs: 1.5, sm: 1 }, // Larger tap target on mobile
                                         '&.Mui-selected': {
                                             bgcolor: 'primary.light',
                                             '&:hover': {
@@ -327,7 +343,12 @@ export function CommandPalette() {
             </List>
 
             <Divider />
-            <Box sx={{ p: 1.5, display: 'flex', gap: 2, justifyContent: 'center' }}>
+            <Box sx={{
+                p: 1.5,
+                display: { xs: 'none', sm: 'flex' }, // Hide keyboard hints on mobile
+                gap: 2,
+                justifyContent: 'center'
+            }}>
                 <Typography variant="caption" color="text.secondary">
                     <Chip label="↑↓" size="small" sx={{ mr: 0.5, height: 18 }} /> Navigate
                 </Typography>

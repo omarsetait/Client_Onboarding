@@ -2,6 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 
+export interface EmailAttachment {
+    filename: string;
+    path?: string;
+    content?: Buffer;
+    contentType?: string;
+}
+
 export interface EmailOptions {
     to: string;
     subject: string;
@@ -15,6 +22,7 @@ export interface EmailOptions {
     trackClicks?: boolean;
     headers?: Record<string, string>;
     metadata?: Record<string, unknown>;
+    attachments?: EmailAttachment[];
 }
 
 export interface EmailResult {

@@ -112,10 +112,23 @@ export function LeadsKanban({ leads, onStageChange, loading }: LeadsKanbanProps)
             <Box
                 sx={{
                     display: 'flex',
-                    gap: 2,
+                    gap: { xs: 1.5, sm: 2 },
                     overflowX: 'auto',
                     pb: 2,
-                    minHeight: 'calc(100vh - 200px)',
+                    minHeight: { xs: 'auto', md: 'calc(100vh - 200px)' },
+                    // Mobile horizontal scroll with snap
+                    scrollSnapType: { xs: 'x mandatory', md: 'none' },
+                    WebkitOverflowScrolling: 'touch',
+                    px: { xs: 0.5, sm: 0 },
+                    mx: { xs: -2, sm: 0 }, // Negative margin to utilize full width on mobile
+                    // Hide scrollbar on mobile for cleaner look
+                    '&::-webkit-scrollbar': {
+                        height: { xs: 4, md: 8 },
+                    },
+                    '&::-webkit-scrollbar-thumb': {
+                        bgcolor: 'rgba(0,0,0,0.2)',
+                        borderRadius: 4,
+                    },
                 }}
             >
                 {STAGES.map((stage) => (
@@ -125,14 +138,17 @@ export function LeadsKanban({ leads, onStageChange, loading }: LeadsKanbanProps)
                                 ref={provided.innerRef}
                                 {...provided.droppableProps}
                                 sx={{
-                                    minWidth: 280,
-                                    maxWidth: 280,
+                                    minWidth: { xs: 260, sm: 280 },
+                                    maxWidth: { xs: 260, sm: 280 },
+                                    flexShrink: 0,
                                     bgcolor: snapshot.isDraggingOver
-                                        ? 'rgba(0,0,0,0.04)'
-                                        : 'rgba(0,0,0,0.02)',
-                                    borderRadius: 3,
-                                    p: 1.5,
+                                        ? 'action.selected'
+                                        : 'action.hover',
+                                    borderRadius: { xs: 2, sm: 3 },
+                                    p: { xs: 1, sm: 1.5 },
                                     transition: 'background 0.2s ease',
+                                    // Snap to this column on mobile
+                                    scrollSnapAlign: 'start',
                                 }}
                             >
                                 {/* Column Header */}

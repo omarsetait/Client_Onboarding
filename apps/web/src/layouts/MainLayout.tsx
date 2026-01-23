@@ -12,6 +12,8 @@ import {
     Menu,
     MenuItem,
     Divider,
+    BottomNavigation,
+    BottomNavigationAction,
 } from '@mui/material';
 import {
     Menu as MenuIcon,
@@ -73,8 +75,9 @@ export function MainLayout() {
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                bgcolor: '#fafafa',
-                borderRight: '1px solid rgba(0,0,0,0.08)',
+                bgcolor: 'background.paper',
+                borderRight: '1px solid',
+                borderColor: 'divider',
                 pt: 10,
                 pb: 2,
                 overflow: 'visible',
@@ -129,8 +132,8 @@ export function MainLayout() {
                                     fontSize: '0.9rem',
                                     whiteSpace: 'nowrap',
                                     display: isHovered ? 'block' : 'none',
-                                    color: '#000',
-                                    bgcolor: 'rgba(255,255,255,0.95)',
+                                    color: 'text.primary',
+                                    bgcolor: 'background.paper',
                                     px: 1.5,
                                     py: 0.5,
                                     borderRadius: 20,
@@ -192,8 +195,8 @@ export function MainLayout() {
                             fontSize: '0.9rem',
                             whiteSpace: 'nowrap',
                             display: hoveredItem === 'Settings' ? 'block' : 'none',
-                            color: '#000',
-                            bgcolor: 'rgba(255,255,255,0.95)',
+                            color: 'text.primary',
+                            bgcolor: 'background.paper',
                             px: 1.5,
                             py: 0.5,
                             borderRadius: 20,
@@ -331,7 +334,7 @@ export function MainLayout() {
                     ModalProps={{ keepMounted: true }}
                     sx={{
                         display: { xs: 'block', md: 'none' },
-                        '& .MuiDrawer-paper': { width: 200, bgcolor: '#fafafa' },
+                        '& .MuiDrawer-paper': { width: 200, bgcolor: 'background.paper' },
                     }}
                 >
                     {sidebar}
@@ -346,7 +349,7 @@ export function MainLayout() {
                             width: SIDEBAR_WIDTH,
                             border: 'none',
                             overflow: 'visible',
-                            bgcolor: '#fafafa',
+                            bgcolor: 'background.paper',
                         },
                     }}
                     open
@@ -360,15 +363,55 @@ export function MainLayout() {
                 component="main"
                 sx={{
                     flexGrow: 1,
-                    p: 3,
+                    p: { xs: 2, sm: 3 },
                     width: { md: `calc(100% - ${SIDEBAR_WIDTH}px)` },
                     bgcolor: 'background.default',
                     minHeight: '100vh',
                     mt: '64px',
+                    pb: { xs: '80px', md: 3 }, // Extra padding for bottom nav on mobile
                 }}
             >
                 <Outlet />
             </Box>
+
+            {/* Mobile Bottom Navigation */}
+            <BottomNavigation
+                value={menuItems.findIndex(item => isActive(item.path))}
+                onChange={(_, newValue) => navigate(menuItems[newValue].path)}
+                showLabels
+                sx={{
+                    display: { xs: 'flex', md: 'none' },
+                    position: 'fixed',
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    zIndex: 1200,
+                    borderTop: '1px solid rgba(0,0,0,0.08)',
+                    bgcolor: 'background.paper',
+                    height: 64,
+                    '& .MuiBottomNavigationAction-root': {
+                        minWidth: 'auto',
+                        py: 1,
+                        '&.Mui-selected': {
+                            color: brandColors.cyan,
+                        },
+                    },
+                    '& .MuiBottomNavigationAction-label': {
+                        fontSize: '0.65rem',
+                        '&.Mui-selected': {
+                            fontSize: '0.7rem',
+                        },
+                    },
+                }}
+            >
+                {menuItems.slice(0, 5).map((item) => (
+                    <BottomNavigationAction
+                        key={item.text}
+                        label={item.text}
+                        icon={item.icon}
+                    />
+                ))}
+            </BottomNavigation>
 
             {/* Command Palette (Cmd+K) */}
             <CommandPalette />

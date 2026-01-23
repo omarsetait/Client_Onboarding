@@ -18,6 +18,12 @@ import {
     Divider,
     CircularProgress,
     Alert,
+    Dialog,
+    DialogTitle,
+    DialogContent,
+    DialogActions,
+    Stack,
+    Link,
 } from '@mui/material';
 import {
     CalendarMonth as CalendarIcon,
@@ -27,6 +33,11 @@ import {
     ChevronLeft as ChevronLeftIcon,
     ChevronRight as ChevronRightIcon,
     Add as AddIcon,
+    Business as CompanyIcon,
+    Work as WorkIcon,
+    Email as EmailIcon,
+    Phone as PhoneIcon,
+    TrendingUp as StageIcon,
 } from '@mui/icons-material';
 import { calendarApi } from '../api/client';
 
@@ -38,11 +49,16 @@ interface Meeting {
     meetingType: string;
     status: string;
     videoLink?: string;
+    description?: string;
     lead?: {
         id: string;
         firstName: string;
         lastName: string;
         companyName: string;
+        email?: string;
+        phone?: string;
+        jobTitle?: string;
+        stage?: string;
     };
 }
 
@@ -51,6 +67,7 @@ export function CalendarPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [currentDate, setCurrentDate] = useState(new Date());
+    const [selectedMeeting, setSelectedMeeting] = useState<Meeting | null>(null);
 
     useEffect(() => {
         fetchMeetings();
@@ -268,6 +285,7 @@ export function CalendarPage() {
                                                             cursor: 'pointer',
                                                             '&:hover': { bgcolor: 'action.selected' },
                                                         }}
+                                                        onClick={() => setSelectedMeeting(meeting)}
                                                     >
                                                         <ListItemAvatar sx={{ minWidth: 40 }}>
                                                             <Avatar sx={{ width: 32, height: 32, bgcolor: 'primary.main' }}>
@@ -323,7 +341,13 @@ export function CalendarPage() {
                             .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())
                             .slice(0, 5)
                             .map((meeting) => (
-                                <ListItem key={meeting.id} divider>
+                                <ListItem
+                                    key={meeting.id}
+                                    divider
+                                    component="div"
+                                    onClick={() => setSelectedMeeting(meeting)}
+                                    sx={{ cursor: 'pointer', '&:hover': { bgcolor: 'action.hover' } }}
+                                >
                                     <ListItemAvatar>
                                         <Avatar sx={{ bgcolor: 'primary.light' }}>
                                             <VideoCallIcon />
@@ -348,13 +372,142 @@ export function CalendarPage() {
                                     <Chip
                                         label={meeting.status}
                                         size="small"
-                                        color={getStatusColor(meeting.status)}
+                                        color={getStatusColor(meeting.status) as any}
                                     />
                                 </ListItem>
                             ))}
                     </List>
                 )}
             </Paper>
+
+            {/* Meeting Details Dialog */}
+            <Dialog
+                open={!!selectedMeeting}
+                onClose={() => setSelectedMeeting(null)}
+                maxWidth="sm"
+                fullWidth
+            >
+                {selectedMeeting && (
+                    <>
+                        <DialogTitle>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Chip
+                                    label={getMeetingTypeLabel(selectedMeeting.meetingType)}
+                                    size="small"
+                                    color="primary"
+                                    variant="outlined"
+                                />
+                                <Typography variant="h6" sx={{ flex: 1 }}>
+                                    {selectedMeeting.title}
+                                </Typography>
+                            </Box>
+                        </DialogTitle>
+                        <DialogContent dividers>
+                            <Stack spacing={3}>
+                                {/* Time & Status */}
+                                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                                    <Chip
+                                        label={selectedMeeting.status}
+                                        color={getStatusColor(selectedMeeting.status) as any}
+                                        size="small"
+                                    />
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+                                        <TimeIcon fontSize="small" />
+                                        <Typography variant="body2">
+                                            {formatDate(selectedMeeting.startTime)}, {formatTime(selectedMeeting.startTime)} - {formatTime(selectedMeeting.endTime)}
+                                        </Typography>
+                                    </Box>
+                                </Box>
+
+                                {/* Video Link */}
+                                {selectedMeeting.videoLink && (
+                                    <Box sx={{ p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
+                                        <Typography variant="subtitle2" gutterBottom>Video Meeting Link</Typography>
+                                        <Link
+                                            href={selectedMeeting.videoLink}
+                                            target="_blank"
+                                            rel="noopener"
+                                            sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
+                                        >
+                                            <VideoCallIcon fontSize="small" />
+                                            Join Meeting
+                                        </Link>
+                                    </Box>
+                                )}
+
+                                {/* Client Details */}
+                                {selectedMeeting.lead && (
+                                    <Box>
+                                        <Typography variant="subtitle2" gutterBottom sx={{ color: 'text.secondary', textTransform: 'uppercase', fontSize: '0.75rem', letterSpacing: 1 }}>
+                                            Client Details
+                                        </Typography>
+                                        <Paper variant="outlined" sx={{ p: 2 }}>
+                                            <Stack spacing={2}>
+                                                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                                    <Avatar sx={{ bgcolor: 'primary.light' }}>
+                                                        {selectedMeeting.lead.firstName[0]}
+                                                    </Avatar>
+                                                    <Box>
+                                                        <Typography variant="subtitle1" fontWeight={600}>
+                                                            {selectedMeeting.lead.firstName} {selectedMeeting.lead.lastName}
+                                                        </Typography>
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, color: 'text.secondary' }}>
+                                                            <WorkIcon sx={{ fontSize: 14 }} />
+                                                            <Typography variant="caption">
+                                                                {selectedMeeting.lead.jobTitle || 'No Title'}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Box>
+                                                </Box>
+
+                                                <Divider />
+
+                                                <Stack spacing={1}>
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                        <CompanyIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                                                        <Typography variant="body2">{selectedMeeting.lead.companyName}</Typography>
+                                                    </Box>
+                                                    {selectedMeeting.lead.email && (
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                            <EmailIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                                                            <Typography variant="body2">{selectedMeeting.lead.email}</Typography>
+                                                        </Box>
+                                                    )}
+                                                    {selectedMeeting.lead.phone && (
+                                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                            <PhoneIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+                                                            <Typography variant="body2">{selectedMeeting.lead.phone}</Typography>
+                                                        </Box>
+                                                    )}
+                                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                                        <StageIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+                                                        <Typography variant="body2" fontWeight={500} color="primary">
+                                                            Stage: {selectedMeeting.lead.stage || 'Unknown'}
+                                                        </Typography>
+                                                    </Box>
+                                                </Stack>
+                                            </Stack>
+                                        </Paper>
+                                    </Box>
+                                )}
+                            </Stack>
+                        </DialogContent>
+                        <DialogActions>
+                            <Button onClick={() => setSelectedMeeting(null)}>Close</Button>
+                            {selectedMeeting.videoLink && (
+                                <Button
+                                    variant="contained"
+                                    href={selectedMeeting.videoLink}
+                                    target="_blank"
+                                    startIcon={<VideoCallIcon />}
+                                >
+                                    Join Now
+                                </Button>
+                            )}
+                        </DialogActions>
+                    </>
+                )}
+            </Dialog>
         </Box>
     );
 }

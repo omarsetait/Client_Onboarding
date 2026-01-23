@@ -1,11 +1,18 @@
 import { Controller, Post, Get, Param, Body, UseGuards, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { IsString, IsOptional } from 'class-validator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AutoSchedulerService } from './auto-scheduler.service';
 import { MicrosoftGraphService } from './microsoft-graph.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 class ScheduleMeetingDto {
+    @IsOptional()
+    @IsString()
     meetingType?: 'discovery' | 'demo' | 'technical' | 'closing';
+
+    @IsOptional()
+    @IsString()
     preferredTime?: string; // ISO date string
 }
 
@@ -17,7 +24,45 @@ export class CalendarController {
     constructor(
         private readonly autoScheduler: AutoSchedulerService,
         private readonly graphService: MicrosoftGraphService,
+        private readonly prisma: PrismaService,
     ) { }
+
+    @Get('meetings')
+    @ApiOperation({ summary: 'Get all meetings' })
+    async getMeetings(
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+    ) {
+        const where: any = {};
+
+        if (startDate && endDate) {
+            where.startTime = {
+                gte: new Date(startDate),
+                lte: new Date(endDate),
+            };
+        }
+
+        const meetings = await this.prisma.meeting.findMany({
+            where,
+            include: {
+                lead: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        companyName: true,
+                        email: true,
+                        jobTitle: true,
+                        stage: true,
+                        phone: true,
+                    },
+                },
+            },
+            orderBy: { startTime: 'asc' },
+        });
+
+        return { meetings };
+    }
 
     @Post('leads/:id/schedule')
     @ApiOperation({ summary: 'Auto-schedule a meeting for a lead' })

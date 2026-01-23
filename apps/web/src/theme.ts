@@ -151,13 +151,31 @@ export const theme = createTheme({
             styleOverrides: {
                 root: {
                     borderRadius: 8,
-                    padding: '8px 16px',
+                    padding: '10px 20px',
                     fontWeight: 500,
+                    minHeight: 44, // Touch-friendly
+                    '@media (max-width: 599px)': {
+                        padding: '12px 16px',
+                        fontSize: '0.9rem',
+                    },
                 },
                 contained: {
                     boxShadow: '0px 1px 2px rgba(0, 0, 0, 0.05)',
                     '&:hover': {
                         boxShadow: '0px 4px 6px rgba(0, 0, 0, 0.1)',
+                    },
+                },
+                sizeSmall: {
+                    minHeight: 36,
+                    padding: '6px 12px',
+                },
+            },
+        },
+        MuiIconButton: {
+            styleOverrides: {
+                root: {
+                    '@media (max-width: 599px)': {
+                        padding: 12, // Larger touch target
                     },
                 },
             },
@@ -167,6 +185,25 @@ export const theme = createTheme({
                 root: {
                     borderRadius: 12,
                     boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.1), 0px 1px 2px rgba(0, 0, 0, 0.06)',
+                    '@media (max-width: 599px)': {
+                        borderRadius: 8,
+                    },
+                },
+            },
+        },
+        MuiCardContent: {
+            styleOverrides: {
+                root: {
+                    padding: 24,
+                    '&:last-child': {
+                        paddingBottom: 24,
+                    },
+                    '@media (max-width: 599px)': {
+                        padding: 16,
+                        '&:last-child': {
+                            paddingBottom: 16,
+                        },
+                    },
                 },
             },
         },
@@ -174,6 +211,17 @@ export const theme = createTheme({
             styleOverrides: {
                 root: {
                     borderRadius: 8,
+                },
+            },
+        },
+        MuiTextField: {
+            styleOverrides: {
+                root: {
+                    '@media (max-width: 599px)': {
+                        '& .MuiInputBase-root': {
+                            minHeight: 48, // Touch-friendly input
+                        },
+                    },
                 },
             },
         },
@@ -188,10 +236,35 @@ export const theme = createTheme({
             styleOverrides: {
                 root: {
                     borderBottom: '1px solid #e7e7e7',
+                    '@media (max-width: 599px)': {
+                        padding: '12px 8px',
+                        fontSize: '0.8rem',
+                    },
                 },
                 head: {
                     fontWeight: 600,
                     backgroundColor: '#f6f6f6',
+                },
+            },
+        },
+        MuiDialog: {
+            styleOverrides: {
+                paper: {
+                    '@media (max-width: 599px)': {
+                        margin: 16,
+                        width: 'calc(100% - 32px)',
+                        maxHeight: 'calc(100% - 32px)',
+                    },
+                },
+            },
+        },
+        MuiDrawer: {
+            styleOverrides: {
+                paper: {
+                    '@media (max-width: 599px)': {
+                        width: '85vw',
+                        maxWidth: 320,
+                    },
                 },
             },
         },
