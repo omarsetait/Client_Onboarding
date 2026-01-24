@@ -5,7 +5,7 @@ import * as fs from 'fs';
 /**
  * Product types available in TachyHealth
  */
-export type ProductType = 'AiReview' | 'AiPharma' | 'AiCode' | 'AiAudit' | 'AiPolicy';
+export type ProductType = 'AiReview' | 'AiPharma' | 'AiCode' | 'AiAudit' | 'AiPolicy' | 'AiCare';
 
 /**
  * Product information including document mapping
@@ -15,6 +15,7 @@ export interface ProductInfo {
     displayName: string;
     description: string;
     documentFilename: string;
+    contentType: string;
 }
 
 /**
@@ -35,30 +36,42 @@ export class ProductDocumentService {
             displayName: 'AI Review',
             description: 'AI-powered claims review and validation',
             documentFilename: 'aireview_brochure.pdf',
+            contentType: 'application/pdf',
         },
         AiPharma: {
             name: 'AiPharma',
             displayName: 'AI Pharma',
             description: 'Pharmacy claims automation and validation',
-            documentFilename: 'aipharma_brochure.pdf',
+            documentFilename: 'aipharma_brochure.pptx',
+            contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
         },
         AiCode: {
             name: 'AiCode',
             displayName: 'AI Code',
             description: 'Intelligent medical coding assistance',
-            documentFilename: 'aicode_brochure.pdf',
+            documentFilename: 'aicode_brochure.pptx',
+            contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
         },
         AiAudit: {
             name: 'AiAudit',
             displayName: 'AI Audit',
             description: 'Automated claims audit and compliance',
             documentFilename: 'aiaudit_brochure.pdf',
+            contentType: 'application/pdf',
         },
         AiPolicy: {
             name: 'AiPolicy',
             displayName: 'AI Policy',
             description: 'Policy compliance and checking automation',
             documentFilename: 'aipolicy_brochure.pdf',
+            contentType: 'application/pdf',
+        },
+        AiCare: {
+            name: 'AiCare',
+            displayName: 'AI Care',
+            description: 'Patient care pathway optimization with Humain',
+            documentFilename: 'aicare_brochure.pptx',
+            contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
         },
     };
 
@@ -84,6 +97,25 @@ export class ProductDocumentService {
      */
     getProduct(productName: ProductType): ProductInfo | undefined {
         return this.products[productName];
+    }
+
+    /**
+     * Get path to Company Profile
+     */
+    getCompanyProfilePath(): { path: string, filename: string, contentType: string } | null {
+        const filename = 'company_profile.pptx';
+        const docPath = path.join(this.documentsDir, filename);
+
+        if (!fs.existsSync(docPath)) {
+            this.logger.warn(`Company profile not found: ${docPath}`);
+            return null;
+        }
+
+        return {
+            path: docPath,
+            filename: 'Company Profile.pptx', // User friendly name
+            contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        };
     }
 
     /**
@@ -115,29 +147,34 @@ export class ProductDocumentService {
         path: string;
         filename: string;
         displayName: string;
+        contentType: string;
     }> {
         const documents: Array<{
             productName: ProductType;
             path: string;
             filename: string;
             displayName: string;
+            contentType: string;
         }> = [];
 
         for (const productName of productNames) {
-            const product = this.products[productName];
+            // Check if productName exists in our map (ignore random case mismatches for safety if needed, but DTO should handle)
+            // But cast to ProductType carefully
+            const product = this.products[productName as ProductType];
             if (!product) continue;
 
             const docPath = path.join(this.documentsDir, product.documentFilename);
 
             if (fs.existsSync(docPath)) {
                 documents.push({
-                    productName,
+                    productName: productName as ProductType,
                     path: docPath,
                     filename: product.documentFilename,
                     displayName: product.displayName,
+                    contentType: product.contentType,
                 });
             } else {
-                this.logger.warn(`Document missing for ${productName}, skipping attachment`);
+                this.logger.warn(`Document missing for ${productName} (${docPath}), skipping attachment`);
             }
         }
 

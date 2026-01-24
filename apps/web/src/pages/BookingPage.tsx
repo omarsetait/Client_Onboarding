@@ -9,6 +9,7 @@ import {
     IconButton,
     Grid,
     LinearProgress,
+    TextField,
 } from '@mui/material';
 import {
     ChevronLeft as PrevIcon,
@@ -46,6 +47,7 @@ export function BookingPage() {
     const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
     const [bookingSuccess, setBookingSuccess] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [notes, setNotes] = useState('');
 
     useEffect(() => {
         if (leadId) {
@@ -80,6 +82,7 @@ export function BookingPage() {
             const response = await axios.post(`${API_BASE}/public/calendar/book`, {
                 leadId,
                 startTime: selectedSlot.start,
+                notes,
             });
 
             if (response.data.success) {
@@ -317,12 +320,27 @@ export function BookingPage() {
                         </Typography>
                     </Box>
 
+                    <Box sx={{ flex: 1, maxWidth: 400 }}>
+                        <TextField
+                            label="Additional Notes (Optional)"
+                            placeholder="Any specific questions or context?"
+                            variant="outlined"
+                            size="small"
+                            fullWidth
+                            multiline
+                            rows={2}
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            sx={{ bgcolor: 'white' }}
+                        />
+                    </Box>
+
                     <Button
                         onClick={handleConfirmBooking}
                         variant="contained"
                         size="large"
                         disabled={submitting}
-                        sx={{ px: 6, py: 1.5, fontSize: '1.1rem', borderRadius: 2 }}
+                        sx={{ px: 6, py: 1.5, fontSize: '1.1rem', borderRadius: 2, height: 'fit-content' }}
                     >
                         {submitting ? 'Confirming...' : 'Confirm Discussion'}
                     </Button>

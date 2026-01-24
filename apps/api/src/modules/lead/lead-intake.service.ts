@@ -82,13 +82,30 @@ export class LeadIntakeService {
                 dto.productsOfInterest
             );
 
+            // Get Company Profile (Always included)
+            const companyProfile = this.productDocumentService.getCompanyProfilePath();
+
+            // Prepare attachments
+            const attachments = [];
+
+            if (companyProfile) {
+                attachments.push({
+                    filename: companyProfile.filename,
+                    path: companyProfile.path,
+                    contentType: companyProfile.contentType,
+                });
+            }
+
+            productDocuments.forEach(doc => {
+                attachments.push({
+                    filename: doc.filename,
+                    path: doc.path,
+                    contentType: doc.contentType,
+                });
+            });
+
             // 4. Build the acknowledgment email
-            const emailHtml = this.buildAcknowledgmentEmail(dto, productDocuments, lead.id);
-            const attachments = productDocuments.map(doc => ({
-                filename: doc.filename,
-                path: doc.path,
-                contentType: 'application/pdf',
-            }));
+            const emailHtml = this.buildAcknowledgmentEmail(dto, productDocuments, lead.id, !!companyProfile);
 
             // 5. Send the acknowledgment email
             const emailResult = await this.emailService.sendEmail(
@@ -110,15 +127,15 @@ export class LeadIntakeService {
                 this.logger.log(`Acknowledgment email sent to ${dto.email}`);
 
                 // Log document sent activity if documents were attached
-                if (productDocuments.length > 0) {
+                if (attachments.length > 0) {
                     await this.prisma.activity.create({
                         data: {
                             leadId: lead.id,
                             type: 'DOCUMENT_SENT',
-                            content: `Product brochures sent: ${productDocuments.map(d => d.displayName).join(', ')}`,
+                            content: `Documents sent: ${attachments.map(d => d.filename).join(', ')}`,
                             automated: true,
                             metadata: {
-                                documents: productDocuments.map(d => d.filename),
+                                documents: attachments.map(d => d.filename),
                                 emailMessageId: emailResult.messageId,
                             },
                         },
@@ -133,7 +150,7 @@ export class LeadIntakeService {
                 leadId: lead.id,
                 message: 'Thank you for your inquiry! We have received your request and will be in touch shortly.',
                 emailSent: emailResult.success,
-                documentsAttached: productDocuments.map(d => d.displayName),
+                documentsAttached: attachments.map(d => d.filename),
             };
 
         } catch (error) {
@@ -150,8 +167,9 @@ export class LeadIntakeService {
      */
     private buildAcknowledgmentEmail(
         dto: LeadIntakeDto,
-        attachedDocuments: Array<{ displayName: string; filename: string }>,
-        leadId: string
+        productDocs: Array<{ displayName: string; filename: string }>,
+        leadId: string,
+        hasCompanyProfile: boolean
     ): string {
         const productList = dto.productsOfInterest
             .map(p => {
@@ -160,10 +178,22 @@ export class LeadIntakeService {
             })
             .join('');
 
-        const attachmentNote = attachedDocuments.length > 0
-            ? `<p>We've attached detailed information about the products you're interested in:</p>
-               <ul>${attachedDocuments.map(d => `<li>${d.displayName} (${d.filename})</li>`).join('')}</ul>`
-            : '';
+        let attachmentsText = '';
+        if (hasCompanyProfile || productDocs.length > 0) {
+            attachmentsText = `<div class="highlight">
+                <h3>Attached Resources:</h3>
+                <ul>`;
+
+            if (hasCompanyProfile) {
+                attachmentsText += `<li><strong>TachyHealth Company Profile</strong> - Overview of our mission and capabilities.</li>`;
+            }
+
+            productDocs.forEach(d => {
+                attachmentsText += `<li><strong>${d.displayName} Brochure</strong> - Detailed product specifications.</li>`;
+            });
+
+            attachmentsText += `</ul></div>`;
+        }
 
         return `
 <!DOCTYPE html>
@@ -192,12 +222,9 @@ export class LeadIntakeService {
             
             <p>Thank you for reaching out to TachyHealth! We've received your inquiry and are excited to learn more about how we can help <strong>${dto.companyName}</strong>.</p>
             
-            <div class="highlight">
-                <h3>Your Areas of Interest:</h3>
-                <ul>${productList}</ul>
-            </div>
+            ${attachmentsText}
 
-            ${attachmentNote}
+            <p>Based on your interest in <strong>${dto.productsOfInterest.join(', ')}</strong>, we believe our solutions can significantly impact your workflow.</p>
 
             <div style="text-align: center; margin: 30px 0;">
                 <a href="http://localhost:3000/book-demo?leadId=${leadId}" 
@@ -216,7 +243,7 @@ export class LeadIntakeService {
                 <li>We'll prepare a customized demo based on your specific needs</li>
             </ol>
 
-            <p>In the meantime, feel free to reply to this email if you have any questions.</p>
+            <p>In the meantime, explore our attached resources to learn more.</p>
 
             <p>Best regards,<br>
             <strong>The TachyHealth Team</strong></p>

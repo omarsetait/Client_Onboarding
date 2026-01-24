@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Query, HttpCode, HttpStatus, HttpException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CalendarService } from './calendar.service';
-import { IsString, IsNotEmpty, IsISO8601 } from 'class-validator';
+import { IsString, IsNotEmpty, IsISO8601, IsOptional } from 'class-validator';
 
 class BookMeetingDto {
     @IsString()
@@ -11,6 +11,10 @@ class BookMeetingDto {
     @IsISO8601()
     @IsNotEmpty()
     startTime: string;
+
+    @IsString()
+    @IsOptional()
+    notes?: string;
 }
 
 @ApiTags('Public')
@@ -29,7 +33,7 @@ export class PublicCalendarController {
     @ApiOperation({ summary: 'Book a meeting from public page' })
     async bookMeeting(@Body() dto: BookMeetingDto) {
         try {
-            const meeting = await this.calendarService.bookPublicMeeting(dto.leadId, dto.startTime);
+            const meeting = await this.calendarService.bookPublicMeeting(dto.leadId, dto.startTime, dto.notes);
             return {
                 success: true,
                 message: 'Meeting scheduled successfully',

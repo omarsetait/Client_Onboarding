@@ -83,7 +83,7 @@ export class CalendarService {
     /**
      * Book a meeting publicly
      */
-    async bookPublicMeeting(leadId: string, startTime: string) {
+    async bookPublicMeeting(leadId: string, startTime: string, notes?: string) {
         const start = new Date(startTime);
         const end = new Date(start.getTime() + 60 * 60 * 1000); // 60 min default
 
@@ -103,6 +103,8 @@ export class CalendarService {
             },
         });
 
+        const description = 'Self-scheduled discovery call via website.' + (notes ? `\n\nClient Notes: ${notes}` : '');
+
         // 3. Create the meeting
         const meeting = await this.prisma.meeting.create({
             data: {
@@ -113,7 +115,7 @@ export class CalendarService {
                 status: 'SCHEDULED',
                 leadId: leadId,
                 videoLink: 'https://teams.microsoft.com/l/meetup-join/simulated',
-                description: 'Self-scheduled discovery call via website.',
+                description: description,
                 attendees: [
                     { name: 'Host', email: salesRep.email, role: 'host' }
                 ]
