@@ -16,10 +16,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         private readonly configService: ConfigService,
         private readonly authService: AuthService,
     ) {
+        const secret = configService.get<string>('JWT_SECRET');
+        if (!secret) {
+            console.error('FATAL ERROR: JWT_SECRET is not defined in environment variables.');
+            console.log('Available Env Keys:', Object.keys(process.env));
+            throw new Error('JWT_SECRET is missing');
+        }
+
         super({
             jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
-            secretOrKey: configService.get<string>('JWT_SECRET'),
+            secretOrKey: secret,
         });
     }
 
