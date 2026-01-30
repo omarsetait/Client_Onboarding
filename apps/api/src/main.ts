@@ -1,5 +1,5 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { join } from 'path';
@@ -7,6 +7,19 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
+    const logger = new Logger('Bootstrap');
+
+    // DEBUG: Log available environment variables (keys only) to debug Vercel issues
+    const envKeys = Object.keys(process.env).sort();
+    logger.debug(`Environment Variables available: ${envKeys.join(', ')}`);
+
+    // Check critical keys
+    if (!process.env.JWT_SECRET) {
+        logger.error('CRITICAL: JWT_SECRET is missing from process.env');
+    } else {
+        logger.log('JWT_SECRET is present (length: ' + process.env.JWT_SECRET.length + ')');
+    }
+
     const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
     // Security
