@@ -39,10 +39,9 @@ export class AgentOrchestrator {
     async processNewLead(leadId: string): Promise<void> {
         this.logger.log(`Starting AI pipeline for lead ${leadId}`);
 
-        // Queue the lead for processing
-        await this.agentQueue.add('process-lead', {
+        // Queue the full lead pipeline (qualification -> enrichment -> follow-up)
+        await this.agentQueue.add('new-lead-pipeline', {
             leadId,
-            step: 'qualification',
         }, {
             attempts: 3,
             backoff: { type: 'exponential', delay: 1000 },

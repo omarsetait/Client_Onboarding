@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 export class AutoSchedulerService {
     private readonly logger = new Logger(AutoSchedulerService.name);
     private readonly salesRepEmail: string;
+    private readonly apiBaseUrl: string;
 
     constructor(
         private readonly prisma: PrismaService,
@@ -19,6 +20,7 @@ export class AutoSchedulerService {
             'DEFAULT_SALES_REP_EMAIL',
             'sales@tachyhealth.com',
         );
+        this.apiBaseUrl = configService.get<string>('API_URL', 'http://localhost:3001');
     }
 
     /**
@@ -111,27 +113,22 @@ export class AutoSchedulerService {
                 },
             });
 
-            // Update lead stage
-            await this.prisma.lead.update({
-                where: { id: leadId },
-                data: { stage: 'MEETING_SCHEDULED' },
-            });
-
-            // Log activity
+            // Log activity (meeting proposed; awaiting confirmation)
             await this.prisma.activity.create({
                 data: {
                     leadId,
-                    type: 'MEETING_SCHEDULED',
-                    content: `${meetingType.charAt(0).toUpperCase() + meetingType.slice(1)} call scheduled for ${meeting.start.toLocaleString()}`,
+                    type: 'TASK_CREATED',
+                    content: `${meetingType.charAt(0).toUpperCase() + meetingType.slice(1)} call proposed for ${meeting.start.toLocaleString()}`,
                     automated: true,
                     metadata: {
                         meetingId: meeting.id,
                         joinUrl: meeting.joinUrl,
+                        status: 'SCHEDULED',
                     },
                 },
             });
 
-            // Send confirmation email
+            // Send confirmation request email (no stage change yet)
             await this.sendMeetingConfirmation(lead, meeting, meetingType);
 
             this.logger.log(`Meeting scheduled for lead ${leadId} at ${meeting.start}`);
@@ -212,7 +209,7 @@ export class AutoSchedulerService {
 
     private async sendMeetingConfirmation(
         lead: any,
-        meeting: { start: Date; joinUrl?: string },
+        meeting: { id: string; start: Date; joinUrl?: string },
         type: string,
     ): Promise<void> {
         const formattedDate = meeting.start.toLocaleDateString('en-US', {
@@ -227,14 +224,16 @@ export class AutoSchedulerService {
             hour12: true,
         });
 
+        const confirmLink = `${this.apiBaseUrl}/api/v1/public/calendar/confirm?meetingId=${encodeURIComponent(meeting.id)}&email=${encodeURIComponent(lead.email)}`;
+
         await this.emailService.sendEmail(
             {
                 to: lead.email,
-                subject: `Meeting Confirmed: ${type.charAt(0).toUpperCase() + type.slice(1)} Call on ${formattedDate}`,
+                subject: `Confirm your ${type.charAt(0).toUpperCase() + type.slice(1)} Call on ${formattedDate}`,
                 html: `
           <p>Hi ${lead.firstName},</p>
           
-          <p>Your meeting with TachyHealth has been confirmed!</p>
+          <p>We have a proposed time for your meeting with TachyHealth. Please confirm to lock it in.</p>
           
           <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <p><strong>📅 Date:</strong> ${formattedDate}</p>
@@ -242,7 +241,10 @@ export class AutoSchedulerService {
             ${meeting.joinUrl ? `<p><strong>🔗 Join:</strong> <a href="${meeting.joinUrl}">Click here to join Teams meeting</a></p>` : ''}
           </div>
           
-          <p>Please add this to your calendar. If you need to reschedule, just reply to this email.</p>
+          <p style="margin: 24px 0;">
+            <a href="${confirmLink}" style="background-color: #2563eb; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; display: inline-block;">Confirm Meeting</a>
+          </p>
+          <p>If this time doesn't work, reply to this email and we'll reschedule.</p>
           
           <p>Looking forward to speaking with you!</p>
           
@@ -291,18 +293,12 @@ export class AutoSchedulerService {
             },
         });
 
-        // Update lead stage
-        await this.prisma.lead.update({
-            where: { id: lead.id },
-            data: { stage: 'MEETING_SCHEDULED' },
-        });
-
-        // Log activity
+        // Log activity (meeting proposed; awaiting confirmation)
         await this.prisma.activity.create({
             data: {
                 leadId: lead.id,
-                type: 'MEETING_SCHEDULED',
-                content: `[SIMULATED] ${meetingType} call scheduled for ${meetingStart.toLocaleString()}`,
+                type: 'TASK_CREATED',
+                content: `[SIMULATED] ${meetingType} call proposed for ${meetingStart.toLocaleString()}`,
                 automated: true,
                 metadata: simulatedMeeting,
             },

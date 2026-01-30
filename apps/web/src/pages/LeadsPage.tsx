@@ -271,6 +271,7 @@ export function LeadsPage() {
                     }))}
                     onStageChange={handleStageChange}
                     loading={isLoading}
+                    onActionClick={handleMenuClick}
                 />
             ) : (
                 <GlassCard sx={{ p: 0 }}>
@@ -316,6 +317,9 @@ export function LeadsPage() {
                 </MenuItem>
                 <MenuItem onClick={handleMenuClose}>Edit</MenuItem>
                 <MenuItem onClick={handleMenuClose}>Assign</MenuItem>
+                <MenuItem onClick={() => { navigate(`/proposals/new?leadId=${selectedLead}`); handleMenuClose(); }}>
+                    Create Proposal
+                </MenuItem>
                 <MenuItem onClick={handleMenuClose} sx={{ color: 'error.main' }}>
                     Delete
                 </MenuItem>

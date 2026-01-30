@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Query, HttpCode, HttpStatus, HttpException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { CalendarService } from './calendar.service';
-import { IsString, IsNotEmpty, IsISO8601, IsOptional } from 'class-validator';
+import { IsString, IsNotEmpty, IsISO8601, IsOptional, IsEmail } from 'class-validator';
 
 class BookMeetingDto {
     @IsString()
@@ -15,6 +15,16 @@ class BookMeetingDto {
     @IsString()
     @IsOptional()
     notes?: string;
+}
+
+class ConfirmMeetingDto {
+    @IsString()
+    @IsNotEmpty()
+    meetingId: string;
+
+    @IsEmail()
+    @IsNotEmpty()
+    email: string;
 }
 
 @ApiTags('Public')
@@ -41,6 +51,37 @@ export class PublicCalendarController {
             };
         } catch (error) {
             throw new HttpException('Failed to book meeting: ' + (error.message || 'Unknown error'), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @Get('confirm')
+    @ApiOperation({ summary: 'Confirm a proposed meeting' })
+    async confirmMeeting(@Query() dto: ConfirmMeetingDto) {
+        try {
+            const meeting = await this.calendarService.confirmPublicMeeting(dto.meetingId, dto.email);
+            return {
+                success: true,
+                message: 'Meeting confirmed successfully',
+                meeting,
+            };
+        } catch (error) {
+            throw new HttpException('Failed to confirm meeting: ' + (error.message || 'Unknown error'), HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    @Post('confirm')
+    @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Confirm a proposed meeting (POST)' })
+    async confirmMeetingPost(@Body() dto: ConfirmMeetingDto) {
+        try {
+            const meeting = await this.calendarService.confirmPublicMeeting(dto.meetingId, dto.email);
+            return {
+                success: true,
+                message: 'Meeting confirmed successfully',
+                meeting,
+            };
+        } catch (error) {
+            throw new HttpException('Failed to confirm meeting: ' + (error.message || 'Unknown error'), HttpStatus.BAD_REQUEST);
         }
     }
 }

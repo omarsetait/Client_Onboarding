@@ -8,7 +8,13 @@ import { EmailTemplateService } from '../modules/communication/email-template.se
 
 interface LeadProcessJob {
     leadId: string;
-    step: 'qualification' | 'enrichment' | 'acknowledgment' | 'follow-up';
+    step: 'qualification' | 'enrichment' | 'follow-up';
+}
+
+interface NoShowFollowUpJob {
+    leadId: string;
+    meetingId: string;
+    step: 'apology' | 'rep-call' | 'formal-reschedule' | 'finalize';
 }
 
 @Processor('agent-tasks')
@@ -40,9 +46,6 @@ export class LeadPipelineProcessor {
             case 'enrichment':
                 await this.runEnrichment(leadId);
                 break;
-            case 'acknowledgment':
-                await this.sendAcknowledgment(leadId);
-                break;
             case 'follow-up':
                 await this.sendFollowUp(leadId);
                 break;
@@ -60,10 +63,7 @@ export class LeadPipelineProcessor {
         // Step 2: Enrich with research data
         await this.runEnrichment(leadId);
 
-        // Step 3: Send acknowledgment email (within 5 minutes)
-        await this.sendAcknowledgment(leadId);
-
-        // Step 4: Schedule follow-up for 2 days later (if no response)
+        // Step 3: Schedule follow-up for 2 days later (if no response)
         await job.queue.add(
             'process-lead',
             { leadId, step: 'follow-up' } as any,
@@ -71,6 +71,191 @@ export class LeadPipelineProcessor {
         );
 
         this.logger.log(`Pipeline initiated for lead ${leadId}`);
+    }
+
+    @Process('no-show-follow-up')
+    async handleNoShowFollowUp(job: Job<NoShowFollowUpJob>) {
+        const { leadId, meetingId, step } = job.data;
+        this.logger.log(`No-show follow-up for lead ${leadId} - Step: ${step}`);
+
+        const meeting = await this.prisma.meeting.findUnique({
+            where: { id: meetingId },
+            include: { lead: true },
+        });
+
+        if (!meeting || !meeting.lead) {
+            this.logger.warn(`Meeting ${meetingId} not found for no-show follow-up`);
+            return;
+        }
+
+        const lead = meeting.lead;
+
+        if (meeting.status !== 'NO_SHOW') {
+            this.logger.log(`Meeting ${meetingId} is not marked NO_SHOW, skipping step ${step}`);
+            return;
+        }
+
+        if (step === 'apology') {
+            const rescheduleLink = this.buildRescheduleLink(meetingId, lead.email);
+            const slots = this.generateRescheduleSlots();
+
+            await this.emailService.sendEmail({
+                to: lead.email,
+                subject: `We missed you — let's reschedule`,
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                        <h2 style="color: #1a365d;">Sorry we missed you</h2>
+                        <p>Hi ${lead.firstName || 'there'},</p>
+                        <p>We noticed we missed our call. No worries — we'd still love to connect.</p>
+                        <p>Here are a few suggested times:</p>
+                        <ul>
+                            ${slots.map(slot => `<li>${slot}</li>`).join('')}
+                        </ul>
+                        <p style="margin: 24px 0;">
+                            <a href="${rescheduleLink}" style="background-color: #2563eb; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                                Pick a New Time
+                            </a>
+                        </p>
+                        <p>— TachyHealth Team</p>
+                    </div>
+                `,
+                trackOpens: true,
+                trackClicks: true,
+                metadata: { type: 'no_show_apology', meetingId },
+            }, leadId);
+
+            return;
+        }
+
+        if (step === 'rep-call') {
+            await this.prisma.activity.create({
+                data: {
+                    leadId: lead.id,
+                    type: 'TASK_CREATED',
+                    content: 'Call lead and send LinkedIn follow-up after no-show',
+                    automated: true,
+                    metadata: { meetingId, channels: ['PHONE', 'LINKEDIN'] },
+                },
+            });
+            return;
+        }
+
+        if (step === 'formal-reschedule') {
+            const rescheduleLink = this.buildRescheduleLink(meetingId, lead.email);
+            await this.emailService.sendEmail({
+                to: lead.email,
+                subject: `Reschedule your TachyHealth session`,
+                html: `
+                    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                        <h2 style="color: #1a365d;">Still interested in connecting?</h2>
+                        <p>Hi ${lead.firstName || 'there'},</p>
+                        <p>We’d love to help — if it’s easier, you can pick a new time below.</p>
+                        <p style="margin: 24px 0;">
+                            <a href="${rescheduleLink}" style="background-color: #2563eb; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                                Reschedule Now
+                            </a>
+                        </p>
+                        <p>Prefer async? Here are options:</p>
+                        <ul>
+                            <li><a href="https://tachyhealth.com/demo">Watch the demo video</a></li>
+                            <li><a href="https://tachyhealth.com/overview.pdf">Download the overview PDF</a></li>
+                        </ul>
+                        <p>— TachyHealth Team</p>
+                    </div>
+                `,
+                trackOpens: true,
+                trackClicks: true,
+                metadata: { type: 'no_show_formal_reschedule', meetingId },
+            }, leadId);
+
+            return;
+        }
+
+        if (step === 'finalize') {
+            const originalScore = lead.score || 0;
+            const newScore = Math.max(0, originalScore - 10);
+            const isHigh = originalScore >= 70 || lead.stage === 'HOT_ENGAGED';
+            const isLow = originalScore < 50;
+            const targetStage = isHigh ? 'WARM_NURTURING' : (isLow ? 'COLD_ARCHIVED' : 'WARM_NURTURING');
+
+            await this.prisma.lead.update({
+                where: { id: lead.id },
+                data: {
+                    score: newScore,
+                    stage: targetStage,
+                },
+            });
+
+            await this.prisma.activity.create({
+                data: {
+                    leadId: lead.id,
+                    type: 'SCORE_UPDATED',
+                    content: `Score decreased by 10 due to no-show. New score: ${newScore}`,
+                    automated: true,
+                    metadata: { previousScore: originalScore, newScore, meetingId },
+                },
+            });
+
+            if (lead.stage !== targetStage) {
+                await this.prisma.stageHistory.create({
+                    data: {
+                        leadId: lead.id,
+                        fromStage: lead.stage,
+                        toStage: targetStage,
+                        reason: 'No-show finalization',
+                        automated: true,
+                    },
+                });
+
+                await this.prisma.activity.create({
+                    data: {
+                        leadId: lead.id,
+                        type: 'STAGE_CHANGED',
+                        content: `Stage changed from ${lead.stage} to ${targetStage}`,
+                        automated: true,
+                        metadata: { meetingId, trigger: 'no_show_final' },
+                    },
+                });
+            }
+
+            if (isHigh) {
+                await this.prisma.activity.create({
+                    data: {
+                        leadId: lead.id,
+                        type: 'WORKFLOW_TRIGGERED',
+                        content: 'Manager review required: high-score lead no-show',
+                        automated: true,
+                        metadata: { meetingId, score: originalScore },
+                    },
+                });
+            }
+        }
+    }
+
+    private buildRescheduleLink(meetingId: string, email?: string) {
+        const token = email ? Buffer.from(email).toString('base64') : 'no-email';
+        return `https://app.tachyhealth.com/reschedule/${meetingId}?token=${token}`;
+    }
+
+    private generateRescheduleSlots() {
+        const slots: string[] = [];
+        const now = new Date();
+
+        let dayOffset = 1;
+        while (slots.length < 3) {
+            const date = new Date(now);
+            date.setDate(date.getDate() + dayOffset);
+
+            const day = date.getDay();
+            if (day !== 0 && day !== 6) {
+                date.setHours(10, 0, 0, 0);
+                slots.push(date.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }));
+            }
+
+            dayOffset += 1;
+        }
+
+        return slots;
     }
 
     private async runQualification(leadId: string) {
@@ -95,63 +280,7 @@ export class LeadPipelineProcessor {
         }
     }
 
-    private async sendAcknowledgment(leadId: string) {
-        const lead = await this.prisma.lead.findUnique({ where: { id: leadId } });
-        if (!lead) return;
 
-        // Check if acknowledgment already sent
-        const existingEmail = await this.prisma.communication.findFirst({
-            where: {
-                leadId,
-                channel: 'EMAIL',
-                subject: { contains: 'Thanks for reaching out' },
-            },
-        });
-
-        if (existingEmail) {
-            this.logger.log(`Acknowledgment already sent to lead ${leadId}`);
-            return;
-        }
-
-        // Get template and render
-        const template = await this.templateService.getTemplate('acknowledgment');
-        if (!template) {
-            this.logger.error('Acknowledgment template not found');
-            return;
-        }
-
-        const { subject, body } = this.templateService.render(template, {
-            firstName: lead.firstName,
-            lastName: lead.lastName,
-            companyName: lead.companyName,
-            industry: lead.industry || undefined,
-        });
-
-        // Send email
-        const result = await this.emailService.sendEmail(
-            {
-                to: lead.email,
-                subject,
-                html: body,
-                trackOpens: true,
-                trackClicks: true,
-                metadata: { type: 'acknowledgment', automated: true },
-            },
-            leadId,
-        );
-
-        if (result.success) {
-            this.logger.log(`Acknowledgment email sent to ${lead.email}`);
-
-            // Update lead stage to QUALIFYING
-            await this.prisma.lead.update({
-                where: { id: leadId },
-                data: { stage: 'QUALIFYING' },
-            });
-        } else {
-            this.logger.error(`Failed to send acknowledgment to ${lead.email}: ${result.error}`);
-        }
-    }
 
     private async sendFollowUp(leadId: string) {
         const lead = await this.prisma.lead.findUnique({

@@ -37,6 +37,7 @@ model User {
   activities     Activity[]
   notes          Note[]
   sessions       Session[]
+  proposals      Proposal[]
 
   @@index([email])
   @@index([role])
@@ -134,6 +135,7 @@ model Lead {
   meetings        Meeting[]
   communications  Communication[]
   stageHistory    StageHistory[]
+  proposals       Proposal[]
 
   @@unique([email, deletedAt])
   @@index([email])
@@ -254,6 +256,7 @@ enum ActivityType {
   DOCUMENT_SENT
   DOCUMENT_VIEWED
   DOCUMENT_SIGNED
+  PROPOSAL_SENT // New activity type for manual proposals
   TASK_CREATED
   TASK_COMPLETED
   WHATSAPP_SENT
@@ -538,6 +541,69 @@ enum SignatureStatus {
   DECLINED
   VOIDED
   EXPIRED
+}
+
+// ===========================================
+// Proposals
+// ===========================================
+
+model Proposal {
+  id          String         @id @default(uuid())
+  leadId      String
+  title       String
+  status      ProposalStatus @default(DRAFT)
+  validUntil  DateTime?
+  totalAmount Decimal        @db.Decimal(12, 2) @default(0)
+  currency    String         @default("USD")
+  content     Json?          // Stores layout/template configuration
+  attachmentUrl String?      // URL of the manually uploaded proposal PDF
+  notes       String?        @db.Text
+  createdById String
+
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  // Relations
+  lead        Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdBy   User           @relation(fields: [createdById], references: [id])
+  items       ProposalItem[]
+  
+  type        ProposalType   @default(COMMERCIAL)
+
+  @@index([leadId])
+  @@index([status])
+  @@index([createdById])
+}
+
+enum ProposalType {
+  TECHNICAL
+  COMMERCIAL
+}
+
+enum ProposalStatus {
+  DRAFT
+  SENT
+  VIEWED
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model ProposalItem {
+  id          String   @id @default(uuid())
+  proposalId  String
+  productName String
+  description String?  @db.Text
+  quantity    Int      @default(1)
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  amount      Decimal  @db.Decimal(12, 2)
+  sortOrder   Int      @default(0)
+  metadata    Json?
+
+  proposal    Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  @@index([proposalId])
+  @@index([sortOrder])
 }
 
 // ===========================================

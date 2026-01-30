@@ -13,6 +13,8 @@ import {
     Avatar,
     Tabs,
     Tab,
+    Menu,
+    MenuItem,
 } from '@mui/material';
 import {
     ArrowBack as BackIcon,
@@ -21,6 +23,8 @@ import {
     Business as BusinessIcon,
     Schedule as ScheduleIcon,
     AutoAwesome as AiIcon,
+    MoreVert as MoreIcon,
+    Description as ProposalIcon,
 } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -28,11 +32,13 @@ import { leadsApi } from '../api/client';
 import { AiRecommendationPanel } from '../components/AiRecommendationPanel';
 import { AiEmailGenerator } from '../components/AiEmailGenerator';
 import { AiLeadScorer } from '../components/AiLeadScorer';
+import { brandColors } from '../theme';
 
 export function LeadDetailPage() {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState(0);
+    const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
     const { data, isLoading, error } = useQuery({
         queryKey: ['lead', id],
@@ -88,12 +94,30 @@ export function LeadDetailPage() {
                     color={getScoreColor(lead.score)}
                     sx={{ fontWeight: 600 }}
                 />
+                <IconButton onClick={(e) => setAnchorEl(e.currentTarget)}>
+                    <MoreIcon />
+                </IconButton>
+                <Menu
+                    anchorEl={anchorEl}
+                    open={Boolean(anchorEl)}
+                    onClose={() => setAnchorEl(null)}
+                >
+                    <MenuItem onClick={() => { navigate(`/proposals/new?leadId=${id}`); setAnchorEl(null); }}>
+                        Create Proposal
+                    </MenuItem>
+                    <MenuItem onClick={() => setAnchorEl(null)}>Edit Lead</MenuItem>
+                    <MenuItem onClick={() => setAnchorEl(null)}>Assign Lead</MenuItem>
+                    <MenuItem onClick={() => setAnchorEl(null)} sx={{ color: 'error.main' }}>
+                        Delete Lead
+                    </MenuItem>
+                </Menu>
             </Box>
 
             {/* Tabs */}
             <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 3 }}>
                 <Tabs value={activeTab} onChange={(_, v) => setActiveTab(v)}>
                     <Tab label="Overview" />
+                    <Tab label="Proposals" icon={<ProposalIcon />} iconPosition="start" />
                     <Tab label="AI Assistant" icon={<AiIcon />} iconPosition="start" />
                 </Tabs>
             </Box>
@@ -227,9 +251,17 @@ export function LeadDetailPage() {
                                         variant="contained"
                                         startIcon={<AiIcon />}
                                         fullWidth
-                                        onClick={() => setActiveTab(1)}
+                                        onClick={() => setActiveTab(2)}
                                     >
                                         AI Assistant
+                                    </Button>
+                                    <Button
+                                        variant="outlined"
+                                        startIcon={<ProposalIcon />}
+                                        fullWidth
+                                        onClick={() => navigate(`/proposals/new?leadId=${id}`)}
+                                    >
+                                        Create Proposal
                                     </Button>
                                     <Button variant="outlined" startIcon={<EmailIcon />} fullWidth>
                                         Send Email
@@ -277,6 +309,94 @@ export function LeadDetailPage() {
             )}
 
             {activeTab === 1 && (
+                <Card>
+                    <CardContent>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
+                            <Typography variant="h6" fontWeight={600}>
+                                Proposals
+                            </Typography>
+                            <Button
+                                variant="contained"
+                                startIcon={<ProposalIcon />}
+                                onClick={() => navigate(`/proposals/new?leadId=${id}`)}
+                                sx={{
+                                    background: `linear-gradient(135deg, ${brandColors.cyan} 0%, ${brandColors.teal} 100%)`,
+                                }}
+                            >
+                                New Proposal
+                            </Button>
+                        </Box>
+
+                        {lead.proposals && lead.proposals.length > 0 ? (
+                            <Box>
+                                {lead.proposals.map((proposal: any) => (
+                                    <Box
+                                        key={proposal.id}
+                                        sx={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            p: 2,
+                                            mb: 2,
+                                            border: '1px solid',
+                                            borderColor: 'divider',
+                                            borderRadius: 2,
+                                            '&:hover': { bgcolor: 'action.hover' },
+                                        }}
+                                    >
+                                        <Box>
+                                            <Typography variant="subtitle1" fontWeight={600}>
+                                                {proposal.title}
+                                            </Typography>
+                                            <Box sx={{ display: 'flex', gap: 1, mt: 0.5 }}>
+                                                <Chip
+                                                    label={proposal.status}
+                                                    size="small"
+                                                    color={
+                                                        proposal.status === 'ACCEPTED' ? 'success' :
+                                                            proposal.status === 'SENT' ? 'info' :
+                                                                proposal.status === 'DRAFT' ? 'default' : 'warning'
+                                                    }
+                                                    variant="outlined"
+                                                />
+                                                <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center' }}>
+                                                    Created {new Date(proposal.createdAt).toLocaleDateString()}
+                                                </Typography>
+                                            </Box>
+                                        </Box>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                            <Typography fontWeight={600}>
+                                                {new Intl.NumberFormat('en-US', { style: 'currency', currency: proposal.currency || 'USD' }).format(proposal.totalAmount)}
+                                            </Typography>
+                                            <Button
+                                                variant="outlined"
+                                                size="small"
+                                                onClick={() => navigate(`/proposals/${proposal.id}`)}
+                                            >
+                                                View
+                                            </Button>
+                                            <Button
+                                                variant="text"
+                                                size="small"
+                                                onClick={() => navigate(`/proposals/${proposal.id}/edit`)}
+                                            >
+                                                Edit
+                                            </Button>
+                                        </Box>
+                                    </Box>
+                                ))}
+                            </Box>
+                        ) : (
+                            <Box sx={{ textAlign: 'center', py: 4, color: 'text.secondary' }}>
+                                <ProposalIcon sx={{ fontSize: 48, mb: 1, opacity: 0.5 }} />
+                                <Typography>No proposals created yet</Typography>
+                            </Box>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
+            {activeTab === 2 && (
                 <Grid container spacing={3}>
                     <Grid item xs={12} md={6}>
                         <AiRecommendationPanel leadId={id!} />

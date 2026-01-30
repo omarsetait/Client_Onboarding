@@ -1,14 +1,21 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { join } from 'path';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-    const app = await NestFactory.create(AppModule);
+    const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
     // Security
-    app.use(helmet());
+    // app.use(helmet()); 
+    // Helmet blocks cross-origin images by default. 
+    // For local dev with static files, we might need to adjust or disable contentSecurityPolicy
+    app.use(helmet({
+        crossOriginResourcePolicy: false,
+    }));
     app.enableCors({
         origin: process.env.WEB_URL || 'http://localhost:3000',
         credentials: true,
@@ -28,6 +35,11 @@ async function bootstrap() {
 
     // API prefix
     app.setGlobalPrefix('api/v1');
+
+    // Static Assets
+    app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+        prefix: '/uploads/',
+    });
 
     // Swagger documentation
     const config = new DocumentBuilder()

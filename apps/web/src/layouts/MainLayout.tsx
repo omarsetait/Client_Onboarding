@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
     Box,
     Drawer,
@@ -25,6 +26,7 @@ import {
     Analytics as AnalyticsIcon,
     Settings as SettingsIcon,
     Logout as LogoutIcon,
+    RequestQuote as ProposalIcon,
 } from '@mui/icons-material';
 import { RootState } from '../store';
 import { logout } from '../store/slices/authSlice';
@@ -40,6 +42,7 @@ const menuItems = [
     { text: 'Calendar', icon: <CalendarIcon />, path: '/calendar' },
     { text: 'Communications', icon: <EmailIcon />, path: '/communications' },
     { text: 'Documents', icon: <DocumentIcon />, path: '/documents' },
+    { text: 'Proposals', icon: <ProposalIcon />, path: '/proposals' },
     { text: 'Analytics', icon: <AnalyticsIcon />, path: '/analytics' },
 ];
 
@@ -92,6 +95,9 @@ export function MainLayout() {
                     return (
                         <Box
                             key={item.text}
+                            component={motion.div}
+                            whileHover={{ scale: 1.05, x: 5 }}
+                            whileTap={{ scale: 0.95 }}
                             onMouseEnter={() => setHoveredItem(item.text)}
                             onMouseLeave={() => setHoveredItem(null)}
                             onClick={() => navigate(item.path)}
@@ -105,7 +111,7 @@ export function MainLayout() {
                                 cursor: 'pointer',
                                 position: 'relative',
                                 bgcolor: active ? 'rgba(0,0,0,0.05)' : 'transparent',
-                                transition: 'all 0.3s ease',
+                                transition: 'background-color 0.3s ease',
                                 overflow: 'visible',
                                 zIndex: isHovered ? 100 : 1,
                             }}
@@ -117,8 +123,7 @@ export function MainLayout() {
                                     alignItems: 'center',
                                     justifyContent: 'center',
                                     color: active ? brandColors.cyan : isHovered ? brandColors.magenta : '#666',
-                                    transform: isHovered ? 'scale(1.15)' : 'scale(1)',
-                                    transition: 'all 0.3s ease',
+                                    transition: 'color 0.3s ease',
                                     '& svg': { fontSize: 24 },
                                 }}
                             >
@@ -126,26 +131,44 @@ export function MainLayout() {
                             </Box>
 
                             {/* Text - appears on hover with pill background */}
-                            <Typography
-                                sx={{
-                                    fontWeight: 600,
-                                    fontSize: '0.9rem',
-                                    whiteSpace: 'nowrap',
-                                    display: isHovered ? 'block' : 'none',
-                                    color: 'text.primary',
-                                    bgcolor: 'background.paper',
-                                    px: 1.5,
-                                    py: 0.5,
-                                    borderRadius: 20,
-                                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                                }}
-                            >
-                                {item.text}
-                            </Typography>
+                            <AnimatePresence>
+                                {isHovered && (
+                                    <motion.div
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        exit={{ opacity: 0, x: -10 }}
+                                        transition={{ duration: 0.2 }}
+                                        style={{
+                                            position: 'absolute',
+                                            left: '100%',
+                                            marginLeft: '12px',
+                                            zIndex: 100,
+                                        }}
+                                    >
+                                        <Typography
+                                            sx={{
+                                                fontWeight: 600,
+                                                fontSize: '0.9rem',
+                                                whiteSpace: 'nowrap',
+                                                color: 'text.primary',
+                                                bgcolor: 'background.paper',
+                                                px: 1.5,
+                                                py: 0.5,
+                                                borderRadius: 20,
+                                                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                                            }}
+                                        >
+                                            {item.text}
+                                        </Typography>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
 
                             {/* Active indicator */}
                             {active && (
                                 <Box
+                                    component={motion.div}
+                                    layoutId="activeIndicator"
                                     sx={{
                                         position: 'absolute',
                                         left: 0,
@@ -166,6 +189,9 @@ export function MainLayout() {
             {/* Settings at bottom */}
             <Box sx={{ px: 1, overflow: 'visible' }}>
                 <Box
+                    component={motion.div}
+                    whileHover={{ scale: 1.05, x: 5 }}
+                    whileTap={{ scale: 0.95 }}
                     onMouseEnter={() => setHoveredItem('Settings')}
                     onMouseLeave={() => setHoveredItem(null)}
                     onClick={() => navigate('/settings')}
@@ -184,27 +210,43 @@ export function MainLayout() {
                     <Box sx={{
                         color: hoveredItem === 'Settings' ? brandColors.magenta : '#666',
                         display: 'flex',
-                        transform: hoveredItem === 'Settings' ? 'scale(1.15)' : 'scale(1)',
-                        transition: 'all 0.3s ease',
+                        transition: 'color 0.3s ease',
                     }}>
                         <SettingsIcon />
                     </Box>
-                    <Typography
-                        sx={{
-                            fontWeight: 600,
-                            fontSize: '0.9rem',
-                            whiteSpace: 'nowrap',
-                            display: hoveredItem === 'Settings' ? 'block' : 'none',
-                            color: 'text.primary',
-                            bgcolor: 'background.paper',
-                            px: 1.5,
-                            py: 0.5,
-                            borderRadius: 20,
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                        }}
-                    >
-                        Settings
-                    </Typography>
+
+                    <AnimatePresence>
+                        {hoveredItem === 'Settings' && (
+                            <motion.div
+                                initial={{ opacity: 0, x: -10 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                exit={{ opacity: 0, x: -10 }}
+                                transition={{ duration: 0.2 }}
+                                style={{
+                                    position: 'absolute',
+                                    left: '100%',
+                                    marginLeft: '12px',
+                                    zIndex: 100,
+                                }}
+                            >
+                                <Typography
+                                    sx={{
+                                        fontWeight: 600,
+                                        fontSize: '0.9rem',
+                                        whiteSpace: 'nowrap',
+                                        color: 'text.primary',
+                                        bgcolor: 'background.paper',
+                                        px: 1.5,
+                                        py: 0.5,
+                                        borderRadius: 20,
+                                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                                    }}
+                                >
+                                    Settings
+                                </Typography>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </Box>
             </Box>
         </Box>
@@ -369,9 +411,20 @@ export function MainLayout() {
                     minHeight: '100vh',
                     mt: '64px',
                     pb: { xs: '80px', md: 3 }, // Extra padding for bottom nav on mobile
+                    overflowX: 'hidden', // Prevent scrollbar during transitions
                 }}
             >
-                <Outlet />
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={location.pathname}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: 20 }}
+                        transition={{ duration: 0.3, ease: 'easeInOut' }}
+                    >
+                        <Outlet />
+                    </motion.div>
+                </AnimatePresence>
             </Box>
 
             {/* Mobile Bottom Navigation */}
@@ -418,3 +471,4 @@ export function MainLayout() {
         </Box>
     );
 }
+

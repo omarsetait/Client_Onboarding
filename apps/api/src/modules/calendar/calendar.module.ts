@@ -11,12 +11,14 @@ import { CalendarController } from './calendar.controller';
 import { PublicCalendarController } from './public-calendar.controller';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { CommunicationModule } from '../communication/communication.module';
+import { LeadModule } from '../lead/lead.module';
 
 @Module({
     imports: [
         ConfigModule,
         PrismaModule,
         CommunicationModule,
+        LeadModule,
         ScheduleModule.forRoot(),
         BullModule.registerQueue({ name: 'agent-tasks' }),
     ],

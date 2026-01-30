@@ -72,27 +72,50 @@ Analyze the lead and provide a detailed score breakdown.`,
         );
     }
 
-    async execute(input: Lead, context: AgentContext): Promise<AgentResult> {
+    async execute(input: any, context: AgentContext): Promise<AgentResult> {
         this.log('Scoring lead', { leadId: context.leadId });
+
+        // Fetch latest lead data to ensure we have enriched data
+        let lead = input;
+        if (context.leadId) {
+            const dbLead = await this.prisma.lead.findUnique({
+                where: { id: context.leadId },
+            });
+            if (dbLead) {
+                lead = dbLead;
+            }
+        }
+
+        const enrichedData = lead.enrichedData as any;
 
         const prompt = `
 Score this lead for TachyHealth:
 
 LEAD DATA:
-- Name: ${input.firstName} ${input.lastName}
-- Email: ${input.email}
-- Company: ${input.companyName}
-- Job Title: ${input.jobTitle || 'Not provided'}
-- Industry: ${input.industry || 'Not provided'}
-- Phone: ${input.phone || 'Not provided'}
-- Country: ${input.country || 'Not provided'}
-- Source: ${input.source}
+- Name: ${lead.firstName} ${lead.lastName}
+- Email: ${lead.email}
+- Company: ${lead.companyName}
+- Job Title: ${lead.jobTitle || 'Not provided'}
+- Industry: ${lead.industry || 'Not provided'}
+- Phone: ${lead.phone || 'Not provided'}
+- Country: ${lead.country || 'Not provided'}
+- Source: ${lead.source}
+
+ENRICHED DATA (Research Agent):
+${enrichedData ? `
+- Company Size: ${enrichedData.company?.size || 'Unknown'}
+- Revenue: ${enrichedData.company?.revenue || 'Unknown'}
+- Tech Stack: ${enrichedData.company?.technologies?.join(', ') || 'None detected'}
+- Company Insights: ${enrichedData.company?.description || ''}
+- Funding/Growth: ${enrichedData.signals?.fundingRounds?.join(', ') || 'No recent data'}
+- Recent News: ${enrichedData.signals?.recentNews?.join('; ') || 'None'}
+` : 'No enriched data available yet.'}
 
 INQUIRY MESSAGE:
-${input.originalMessage || 'No message provided'}
+${lead.originalMessage || 'No message provided'}
 
 PRODUCTS OF INTEREST:
-${input.productsOfInterest?.join(', ') || 'Not specified'}
+${lead.productsOfInterest?.join(', ') || 'Not specified'}
 
 Provide a detailed scoring in JSON format:
 {
@@ -146,6 +169,10 @@ Provide a detailed scoring in JSON format:
             'UNQUALIFIED': 'DISQUALIFIED',
         };
 
+        const currentLead = await this.prisma.lead.findUnique({ where: { id: leadId } });
+        const fromStage = currentLead?.stage || 'NEW';
+        const toStage = stageMap[score.category] as any;
+
         await this.prisma.lead.update({
             where: { id: leadId },
             data: {
@@ -153,7 +180,7 @@ Provide a detailed scoring in JSON format:
                 scoreBreakdown: score.breakdown as any,
                 scoreConfidence: score.confidence,
                 category: score.category,
-                stage: stageMap[score.category] as any,
+                stage: toStage,
                 aiInsights: {
                     qualification: {
                         scoredAt: new Date().toISOString(),
@@ -164,15 +191,16 @@ Provide a detailed scoring in JSON format:
             },
         });
 
-        // Log stage change
-        await this.prisma.stageHistory.create({
-            data: {
-                leadId,
-                fromStage: 'QUALIFYING',
-                toStage: stageMap[score.category] as any,
-                reason: `AI Qualification: Score ${score.totalScore}/100`,
-                automated: true,
-            },
-        });
+        if (fromStage !== toStage) {
+            await this.prisma.stageHistory.create({
+                data: {
+                    leadId,
+                    fromStage,
+                    toStage,
+                    reason: `AI Qualification: Score ${score.totalScore}/100`,
+                    automated: true,
+                },
+            });
+        }
     }
 }

@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import * as fs from 'fs';
 
 export interface EmailAttachment {
     filename: string;
@@ -46,16 +47,18 @@ export class EmailService {
     }
 
     async sendEmail(options: EmailOptions, leadId?: string): Promise<EmailResult> {
+        const resendApiKey = this.configService.get<string>('RESEND_API_KEY');
         const sendgridApiKey = this.configService.get<string>('SENDGRID_API_KEY');
 
-        if (!sendgridApiKey) {
-            this.logger.warn('SendGrid API key not configured, simulating email send');
+        if (!resendApiKey && !sendgridApiKey) {
+            this.logger.warn('No email provider configured, simulating email send');
             return this.simulateSend(options, leadId);
         }
 
         try {
-            // In production, use SendGrid SDK
-            const response = await this.sendViaSendGrid(options, sendgridApiKey);
+            const response = resendApiKey
+                ? await this.sendViaResend(options, resendApiKey)
+                : await this.sendViaSendGrid(options, sendgridApiKey as string);
 
             // Log the communication
             if (leadId) {
@@ -126,6 +129,118 @@ export class EmailService {
         const messageId = response.headers.get('x-message-id') || `sg-${Date.now()}`;
 
         return { success: true, messageId };
+    }
+
+    private async sendViaResend(options: EmailOptions, apiKey: string): Promise<EmailResult> {
+        const attachmentLimitBytes = 8 * 1024 * 1024;
+        const attachmentBytes = await this.getAttachmentBytes(options.attachments || []);
+        const shouldAttach = attachmentBytes <= attachmentLimitBytes;
+        const attachments = shouldAttach
+            ? await this.buildResendAttachments(options.attachments || [])
+            : [];
+
+        if (!shouldAttach && (options.attachments || []).length > 0) {
+            this.logger.warn(`Resend attachment payload too large (${attachmentBytes} bytes). Sending without attachments.`);
+        }
+        const payload: Record<string, unknown> = {
+            from: options.from || `${this.fromName} <${this.fromEmail}>`,
+            to: [options.to],
+            subject: options.subject,
+            html: options.html,
+            text: options.text || this.htmlToText(options.html),
+            cc: options.cc,
+            bcc: options.bcc,
+            reply_to: options.replyTo,
+            headers: options.headers,
+            attachments: attachments.length > 0 ? attachments : undefined,
+        };
+
+        const maxAttempts = 3;
+        let lastError: string | undefined;
+
+        for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+            try {
+                const response = await this.fetchWithTimeout('https://api.resend.com/emails', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${apiKey}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload),
+                }, 30000);
+
+                if (response.ok) {
+                    const data = await response.json().catch(() => ({} as { id?: string }));
+                    const messageId = (data as { id?: string }).id || `resend-${Date.now()}`;
+                    return { success: true, messageId };
+                }
+
+                lastError = await response.text();
+            } catch (error) {
+                lastError = error instanceof Error ? error.message : 'Unknown error';
+            }
+
+            if (attempt < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 500 * attempt));
+            }
+        }
+
+        throw new Error(`Resend error: ${lastError || 'Unknown error'}`);
+    }
+
+    private async fetchWithTimeout(input: RequestInfo, init: RequestInit, timeoutMs: number) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+            return await fetch(input, { ...init, signal: controller.signal });
+        } finally {
+            clearTimeout(timeout);
+        }
+    }
+
+    private async buildResendAttachments(attachments: EmailAttachment[]) {
+        const results: Array<{ filename: string; content: string; contentType?: string }> = [];
+
+        for (const attachment of attachments) {
+            if (attachment.content) {
+                results.push({
+                    filename: attachment.filename,
+                    content: attachment.content.toString('base64'),
+                    contentType: attachment.contentType,
+                });
+                continue;
+            }
+
+            if (attachment.path && fs.existsSync(attachment.path)) {
+                const buffer = await fs.promises.readFile(attachment.path);
+                results.push({
+                    filename: attachment.filename,
+                    content: buffer.toString('base64'),
+                    contentType: attachment.contentType,
+                });
+            }
+        }
+
+        return results;
+    }
+
+    private async getAttachmentBytes(attachments: EmailAttachment[]) {
+        let total = 0;
+
+        for (const attachment of attachments) {
+            if (attachment.content) {
+                total += attachment.content.length;
+                continue;
+            }
+
+            if (attachment.path && fs.existsSync(attachment.path)) {
+                const stat = await fs.promises.stat(attachment.path);
+                total += stat.size;
+            }
+        }
+
+        return total;
     }
 
     private async simulateSend(options: EmailOptions, leadId?: string): Promise<EmailResult> {

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../communication/email.service';
 import { ProductDocumentService, ProductType } from '../documents/product-document.service';
+import { AgentOrchestrator } from '../ai-agents/orchestrator.service';
 
 export interface LeadIntakeDto {
     firstName: string;
@@ -34,6 +35,7 @@ export class LeadIntakeService {
         private readonly prisma: PrismaService,
         private readonly emailService: EmailService,
         private readonly productDocumentService: ProductDocumentService,
+        private readonly agentOrchestrator: AgentOrchestrator,
     ) { }
 
     /**
@@ -62,6 +64,15 @@ export class LeadIntakeService {
             });
 
             this.logger.log(`Created lead: ${lead.id}`);
+
+            // 1b. Trigger AI Pipeline (Research -> Qualification)
+            try {
+                this.agentOrchestrator.processNewLead(lead.id).catch(err => {
+                    this.logger.error(`Failed to trigger AI pipeline: ${err.message}`, err.stack);
+                });
+            } catch (e) {
+                this.logger.error('Failed to trigger AI pipeline', e);
+            }
 
             // 2. Log the lead creation activity
             await this.prisma.activity.create({

@@ -1,7 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MicrosoftGraphService } from './microsoft-graph.service';
 import { EmailService } from '../communication/email.service';
+import { LeadService } from '../lead/lead.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NoShowDetectionService } from './no-show-detection.service';
 
 @Injectable()
 export class CalendarService {
@@ -11,7 +14,81 @@ export class CalendarService {
         private readonly prisma: PrismaService,
         private readonly graphService: MicrosoftGraphService,
         private readonly emailService: EmailService,
+        private readonly leadService: LeadService,
+        private readonly notificationsService: NotificationsService,
+        private readonly noShowDetection: NoShowDetectionService,
     ) { }
+
+    async handleMeetingOutcome(params: {
+        meetingId: string;
+        status: 'COMPLETED' | 'NO_SHOW' | 'RESCHEDULED';
+        notes?: string;
+        userId?: string;
+    }) {
+        const meeting = await this.prisma.meeting.findUnique({
+            where: { id: params.meetingId },
+            include: { lead: true },
+        });
+
+        if (!meeting) {
+            throw new NotFoundException('Meeting not found');
+        }
+
+        const updated = await this.prisma.meeting.update({
+            where: { id: params.meetingId },
+            data: {
+                status: params.status as any,
+                outcome: params.notes || `Marked as ${params.status}`,
+            },
+        });
+
+        await this.prisma.activity.create({
+            data: {
+                leadId: meeting.leadId,
+                type: params.status === 'COMPLETED' ? 'MEETING_HELD' :
+                    params.status === 'NO_SHOW' ? 'MEETING_NO_SHOW' : 'MEETING_CANCELLED',
+                content: `Meeting marked as ${params.status}. Notes: ${params.notes || 'None'}`,
+                metadata: { meetingId: meeting.id },
+                performedById: params.userId,
+                automated: !params.userId,
+            },
+        });
+
+        if (params.status === 'COMPLETED' && meeting.leadId) {
+            await this.leadService.updateStage(
+                meeting.leadId,
+                {
+                    stage: 'PROPOSAL_SENT',
+                    reason: 'Meeting completed. Proposal required.',
+                },
+                params.userId,
+            );
+
+            await this.notificationsService.notifyLeadUpdate({
+                leadId: meeting.leadId,
+                type: 'STAGE_CHANGE',
+                message: `Proposal needed for ${meeting.lead?.companyName || 'lead'}`,
+                data: { meetingId: meeting.id, stage: 'PROPOSAL_SENT' },
+                userId: params.userId,
+            });
+        }
+
+        if (params.status === 'RESCHEDULED' && meeting.lead) {
+            const rescheduleLink = this.buildRescheduleLink(meeting.id, meeting.lead.email);
+            await this.sendRescheduleEmail(meeting.lead, meeting, rescheduleLink);
+        }
+
+        if (params.status === 'NO_SHOW' && meeting.lead) {
+            await this.noShowDetection.startNoShowWorkflow({
+                meetingId: meeting.id,
+                leadId: meeting.leadId,
+                trigger: params.userId ? 'manual' : 'auto',
+                notes: params.notes,
+            });
+        }
+
+        return updated;
+    }
 
     /**
      * Find available slots for the sales team
@@ -112,7 +189,7 @@ export class CalendarService {
                 startTime: start,
                 endTime: end,
                 meetingType: 'DISCOVERY',
-                status: 'SCHEDULED',
+                status: 'CONFIRMED',
                 leadId: leadId,
                 videoLink: 'https://teams.microsoft.com/l/meetup-join/simulated',
                 description: description,
@@ -184,6 +261,45 @@ export class CalendarService {
         return meeting;
     }
 
+    async confirmPublicMeeting(meetingId: string, email: string) {
+        const meeting = await this.prisma.meeting.findUnique({
+            where: { id: meetingId },
+            include: { lead: true },
+        });
+
+        if (!meeting || !meeting.lead) {
+            throw new NotFoundException('Meeting not found');
+        }
+
+        if (meeting.lead.email.toLowerCase() !== email.toLowerCase()) {
+            throw new NotFoundException('Meeting not found');
+        }
+
+        if (meeting.status !== 'CONFIRMED') {
+            await this.prisma.meeting.update({
+                where: { id: meeting.id },
+                data: { status: 'CONFIRMED' },
+            });
+        }
+
+        await this.prisma.lead.update({
+            where: { id: meeting.leadId },
+            data: { stage: 'MEETING_SCHEDULED' },
+        });
+
+        await this.prisma.activity.create({
+            data: {
+                leadId: meeting.leadId,
+                type: 'MEETING_SCHEDULED',
+                content: 'Meeting confirmed by client',
+                automated: true,
+                metadata: { meetingId: meeting.id },
+            },
+        });
+
+        return meeting;
+    }
+
     private generateGoogleCalendarLink(meeting: any) {
         const start = new Date(meeting.startTime).toISOString().replace(/-|:|\.\d\d\d/g, '');
         const end = new Date(meeting.endTime).toISOString().replace(/-|:|\.\d\d\d/g, '');
@@ -246,6 +362,42 @@ END:VCALENDAR`.trim();
         }
 
         return null; // All booked
+    }
+
+    private buildRescheduleLink(meetingId: string, email?: string) {
+        const token = email ? Buffer.from(email).toString('base64') : 'no-email';
+        return `https://app.tachyhealth.com/reschedule/${meetingId}?token=${token}`;
+    }
+
+    private async sendRescheduleEmail(lead: any, meeting: any, rescheduleLink: string) {
+        if (!lead.email) {
+            this.logger.warn(`Lead ${lead.id} has no email, skipping reschedule email`);
+            return;
+        }
+        const subject = `Reschedule Your TachyHealth Meeting`;
+        const html = `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                <h2 style="color: #1a365d;">Let's Reschedule</h2>
+                <p>Hi ${lead.firstName || 'there'},</p>
+                <p>We'd love to find a new time that works better for you.</p>
+                <p style="margin: 24px 0;">
+                    <a href="${rescheduleLink}" style="background-color: #2563eb; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                        Pick a New Time
+                    </a>
+                </p>
+                <p>If you need anything before then, just reply to this email.</p>
+                <p>— TachyHealth Team</p>
+            </div>
+        `;
+
+        await this.emailService.sendEmail({
+            to: lead.email,
+            subject,
+            html,
+            trackOpens: true,
+            trackClicks: true,
+            metadata: { type: 'reschedule', meetingId: meeting.id },
+        }, lead.id);
     }
 
 

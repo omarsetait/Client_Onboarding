@@ -132,8 +132,66 @@ export const calendarApi = {
         api.post(`/calendar/leads/${leadId}/schedule`, { meetingType }),
     getStatus: () =>
         api.get('/calendar/status'),
+    getPendingOutcomes: () =>
+        api.get('/calendar/meetings/pending-outcomes'),
     getSlots: (leadId: string, days?: number) =>
         api.get(`/calendar/leads/${leadId}/slots`, { params: { days } }),
+    updateMeetingOutcome: (id: string, status: string, notes?: string) =>
+        api.patch(`/calendar/meetings/${id}/outcome`, { status, notes }),
+};
+
+export const documentsApi = {
+    generate: (template: string, leadId: string) =>
+        api.post('/documents/generate', { template, leadId }),
+    getAll: () => api.get('/documents'),
+    getLeadDocuments: (leadId: string) => api.get(`/documents/lead/${leadId}`),
+};
+
+export const analyticsApi = {
+    getSummary: () => api.get('/analytics/summary'),
+    getFunnel: () => api.get('/analytics/funnel'),
+    getMeetings: () => api.get('/analytics/meetings'),
+    getPerformance: () => api.get('/analytics/performance'),
+    getTimeline: () => api.get('/analytics/timeline'),
+};
+
+export const proposalApi = {
+    // CRUD
+    create: (data: { leadId: string; title: string; validUntil?: string; currency?: string; notes?: string; type?: 'TECHNICAL' | 'COMMERCIAL'; items?: any[]; attachmentUrl?: string; totalAmount?: number }) =>
+        api.post('/proposals', data),
+    getAll: (params?: { leadId?: string; status?: string }) =>
+        api.get('/proposals', { params }),
+    getById: (id: string) =>
+        api.get(`/proposals/${id}`),
+    update: (id: string, data: { title?: string; validUntil?: string; currency?: string; notes?: string }) =>
+        api.patch(`/proposals/${id}`, data),
+    delete: (id: string) =>
+        api.delete(`/proposals/${id}`),
+
+    // Item management
+    addItem: (proposalId: string, item: { productName: string; description?: string; quantity: number; unitPrice: number }) =>
+        api.post(`/proposals/${proposalId}/items`, item),
+    removeItem: (proposalId: string, itemId: string) =>
+        api.delete(`/proposals/${proposalId}/items/${itemId}`),
+
+    // Status transitions
+    send: (id: string) =>
+        api.post(`/proposals/${id}/send`),
+    accept: (id: string) =>
+        api.post(`/proposals/${id}/accept`),
+    decline: (id: string) =>
+        api.post(`/proposals/${id}/decline`),
+    uploadFile: (file: File) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        return api.post('/proposals/upload', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+    },
 };
 
 export default api;
+
+

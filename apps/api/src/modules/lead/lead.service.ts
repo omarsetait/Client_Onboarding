@@ -137,6 +137,12 @@ export class LeadService {
                     assignedTo: {
                         select: { id: true, firstName: true, lastName: true, email: true },
                     },
+                    documents: {
+                        where: { type: 'PROPOSAL' },
+                        orderBy: { createdAt: 'desc' },
+                        take: 1,
+                        select: { status: true },
+                    },
                 },
                 skip: (page - 1) * limit,
                 take: limit,
@@ -145,8 +151,15 @@ export class LeadService {
             this.prisma.lead.count({ where }),
         ]);
 
+        const leadsWithProposalStatus = leads.map((lead) => {
+            const latestProposal = lead.documents?.[0];
+            const proposalSent = latestProposal?.status === 'SENT';
+            const { documents, ...rest } = lead as any;
+            return { ...rest, proposalSent };
+        });
+
         return {
-            data: leads,
+            data: leadsWithProposalStatus,
             meta: {
                 total,
                 page,
@@ -187,6 +200,15 @@ export class LeadService {
                 stageHistory: {
                     orderBy: { createdAt: 'desc' },
                     take: 20,
+                },
+                proposals: {
+                    orderBy: { createdAt: 'desc' },
+                    take: 20,
+                    include: {
+                        createdBy: {
+                            select: { id: true, firstName: true, lastName: true },
+                        },
+                    },
                 },
             },
         });

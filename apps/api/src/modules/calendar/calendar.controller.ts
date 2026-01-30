@@ -1,8 +1,9 @@
-import { Controller, Post, Get, Param, Body, UseGuards, Query } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Param, Body, UseGuards, Query, NotFoundException, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { IsString, IsOptional } from 'class-validator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AutoSchedulerService } from './auto-scheduler.service';
+import { CalendarService } from './calendar.service';
 import { MicrosoftGraphService } from './microsoft-graph.service';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -16,6 +17,15 @@ class ScheduleMeetingDto {
     preferredTime?: string; // ISO date string
 }
 
+export class UpdateMeetingOutcomeDto {
+    @IsString()
+    status: 'COMPLETED' | 'NO_SHOW' | 'RESCHEDULED';
+
+    @IsOptional()
+    @IsString()
+    notes?: string;
+}
+
 @ApiTags('Calendar')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
@@ -24,6 +34,7 @@ export class CalendarController {
     constructor(
         private readonly autoScheduler: AutoSchedulerService,
         private readonly graphService: MicrosoftGraphService,
+        private readonly calendarService: CalendarService,
         private readonly prisma: PrismaService,
     ) { }
 
@@ -62,6 +73,34 @@ export class CalendarController {
         });
 
         return { meetings };
+    }
+
+    @Get('meetings/pending-outcomes')
+    @ApiOperation({ summary: 'Get meetings pending release/outcome' })
+    async getPendingOutcomes() {
+        const now = new Date();
+        const meetings = await this.prisma.meeting.findMany({
+            where: {
+                endTime: { lt: now },
+                status: 'SCHEDULED',
+            },
+            orderBy: { endTime: 'desc' },
+            include: {
+                lead: {
+                    select: {
+                        id: true,
+                        firstName: true,
+                        lastName: true,
+                        companyName: true,
+                    },
+                },
+            },
+        });
+
+        return {
+            count: meetings.length,
+            meetings
+        };
     }
 
     @Post('leads/:id/schedule')
@@ -112,6 +151,24 @@ export class CalendarController {
             microsoftGraphConfigured: this.graphService.isAvailable(),
             provider: 'microsoft',
         };
+    }
+
+    @Patch('meetings/:id/outcome')
+    @ApiOperation({ summary: 'Update meeting outcome' })
+    async updateOutcome(
+        @Param('id') id: string,
+        @Body() dto: UpdateMeetingOutcomeDto,
+        @Req() req: any,
+    ) {
+        const meeting = await this.prisma.meeting.findUnique({ where: { id } });
+        if (!meeting) throw new NotFoundException('Meeting not found');
+
+        return this.calendarService.handleMeetingOutcome({
+            meetingId: id,
+            status: dto.status,
+            notes: dto.notes,
+            userId: req.user?.id,
+        });
     }
 
     private generateSimulatedSlots(daysAhead: number, duration: number) {

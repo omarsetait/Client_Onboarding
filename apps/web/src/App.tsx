@@ -13,6 +13,9 @@ import { CommunicationsPage } from './pages/CommunicationsPage';
 import { DocumentsPage } from './pages/DocumentsPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import ProposalsPage from './pages/ProposalsPage';
+import ProposalBuilderPage from './pages/ProposalBuilderPage';
+import ProposalViewPage from './pages/ProposalViewPage';
 import { NotificationProvider } from './components/NotificationProvider';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -29,6 +32,9 @@ function App() {
         <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/book-demo" element={<BookingPage />} />
+
+            {/* Public/External Routes - No Auth required for client view (in loop, we use simple ID for now) */}
+            <Route path="/proposals/:id/view" element={<ProposalViewPage />} />
 
             {/* Protected routes */}
             <Route
@@ -47,6 +53,10 @@ function App() {
                 <Route path="calendar" element={<CalendarPage />} />
                 <Route path="communications" element={<CommunicationsPage />} />
                 <Route path="documents" element={<DocumentsPage />} />
+                <Route path="proposals" element={<ProposalsPage />} />
+                <Route path="proposals/new" element={<ProposalBuilderPage />} />
+                <Route path="proposals/:id" element={<ProposalViewPage />} />
+                <Route path="proposals/:id/edit" element={<ProposalBuilderPage />} />
                 <Route path="analytics" element={<AnalyticsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
             </Route>

@@ -17,6 +17,8 @@ import { AiAgentsController } from './modules/ai-agents/ai-agents.controller';
 import { DocumentModule } from './modules/documents/document.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { ProposalModule } from './modules/proposal/proposal.module';
 
 @Module({
     imports: [
@@ -63,6 +65,12 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
         // Phase 3 modules - Documents & Integrations
         DocumentModule,
         IntegrationsModule,
+
+        // Phase 8 modules - Analytics
+        AnalyticsModule,
+
+        // Phase 10 modules - Proposals & Payments
+        ProposalModule,
     ],
     controllers: [HealthController, AiAgentsController],
 })

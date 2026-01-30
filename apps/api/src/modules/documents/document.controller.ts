@@ -7,6 +7,7 @@ import {
     Res,
     UseGuards,
     NotFoundException,
+    BadRequestException,
 } from '@nestjs/common';
 import { Response } from 'express';
 import { IsString, IsOptional, IsObject } from 'class-validator';
@@ -14,6 +15,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PdfGeneratorService, DocumentTemplate } from './pdf-generator.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as fs from 'fs';
+import { EmailService } from '../communication/email.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export class GenerateDocumentDto {
     @IsString()
@@ -47,6 +50,8 @@ export class DocumentController {
     constructor(
         private readonly pdfGenerator: PdfGeneratorService,
         private readonly prisma: PrismaService,
+        private readonly emailService: EmailService,
+        private readonly notificationsService: NotificationsService,
     ) { }
 
     /**
@@ -179,13 +184,38 @@ export class DocumentController {
             throw new NotFoundException('No recipient email provided');
         }
 
-        // Update document status
+        if (!document.fileUrl || !fs.existsSync(document.fileUrl)) {
+            throw new NotFoundException('Document file not found');
+        }
+
+        const subject = dto.subject || `TachyHealth ${document.type} for ${document.lead?.companyName || 'your review'}`;
+        const message = dto.message || `Hi ${document.lead?.firstName || 'there'},<br /><br />Please find your document attached. Let us know if you have any questions.<br /><br />— TachyHealth Team`;
+
+        const sendResult = await this.emailService.sendEmail({
+            to: recipientEmail,
+            subject,
+            html: `<div style="font-family: Arial, sans-serif;">${message}</div>`,
+            attachments: [
+                {
+                    filename: `${document.title}.pdf`,
+                    path: document.fileUrl,
+                    contentType: 'application/pdf',
+                },
+            ],
+            trackOpens: true,
+            trackClicks: true,
+            metadata: { type: 'document_send', documentId: document.id },
+        }, document.leadId || undefined);
+
+        if (!sendResult.success) {
+            throw new BadRequestException(sendResult.error || 'Failed to send document');
+        }
+
         await this.prisma.document.update({
             where: { id },
             data: { status: 'SENT' },
         });
 
-        // Log activity
         await this.prisma.activity.create({
             data: {
                 type: 'DOCUMENT_SENT',
@@ -199,7 +229,45 @@ export class DocumentController {
             },
         });
 
-        // TODO: Integrate with email service to actually send
+        if (document.type === 'PROPOSAL' && document.lead) {
+            const previousStage = document.lead?.stage || 'PROPOSAL_SENT';
+
+            if (previousStage !== 'NEGOTIATION') {
+                await this.prisma.$transaction(async (tx) => {
+                    await tx.lead.update({
+                        where: { id: document.leadId },
+                        data: { stage: 'NEGOTIATION' },
+                    });
+
+                    await tx.stageHistory.create({
+                        data: {
+                            leadId: document.leadId,
+                            fromStage: previousStage,
+                            toStage: 'NEGOTIATION',
+                            reason: 'Proposal sent',
+                            automated: true,
+                        },
+                    });
+
+                    await tx.activity.create({
+                        data: {
+                            leadId: document.leadId,
+                            type: 'STAGE_CHANGED',
+                            content: `Stage changed from ${previousStage} to NEGOTIATION`,
+                            metadata: { documentId: document.id, trigger: 'proposal_sent' },
+                            automated: true,
+                        },
+                    });
+                });
+            }
+
+            await this.notificationsService.notifyLeadUpdate({
+                leadId: document.leadId,
+                type: 'STAGE_CHANGE',
+                message: `Proposal sent to ${document.lead.companyName}`,
+                data: { documentId: document.id, stage: 'NEGOTIATION' },
+            });
+        }
 
         return {
             success: true,
