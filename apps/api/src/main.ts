@@ -37,7 +37,11 @@ async function bootstrap() {
     app.setGlobalPrefix('api/v1');
 
     // Static Assets
-    app.useStaticAssets(join(__dirname, '..', 'uploads'), {
+    const isVercel = process.env.VERCEL === '1';
+    const uploadPath = isVercel ? '/tmp/uploads' : join(__dirname, '..', 'uploads');
+
+    // In Vercel, static serving from /tmp is limited, but we configure it to prevent crash
+    app.useStaticAssets(uploadPath, {
         prefix: '/uploads/',
     });
 

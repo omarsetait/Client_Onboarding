@@ -62,9 +62,20 @@ export class PdfGeneratorService {
 
     constructor(private readonly prisma: PrismaService) {
         // Create output directory for generated PDFs
-        this.outputDir = path.join(process.cwd(), 'generated-documents');
+        // In Vercel (serverless), only /tmp is writable
+        const isVercel = process.env.VERCEL === '1';
+        const baseDir = isVercel ? '/tmp' : process.cwd();
+
+        this.outputDir = path.join(baseDir, 'generated-documents');
+
         if (!fs.existsSync(this.outputDir)) {
-            fs.mkdirSync(this.outputDir, { recursive: true });
+            try {
+                fs.mkdirSync(this.outputDir, { recursive: true });
+            } catch (error) {
+                this.logger.warn(`Failed to create output directory: ${error.message}`);
+                // Fallback to /tmp if even that fails, though unlikely
+                this.outputDir = '/tmp';
+            }
         }
     }
 

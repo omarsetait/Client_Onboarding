@@ -42,7 +42,10 @@ export class ProposalController {
             throw new BadRequestException('Only PDF and Word documents are allowed!');
         }
 
-        const uploadDir = './uploads';
+        // In Vercel (serverless), use /tmp (ephemeral) or external storage
+        const isVercel = process.env.VERCEL === '1';
+        const uploadDir = isVercel ? '/tmp/uploads' : './uploads';
+
         if (!existsSync(uploadDir)) {
             mkdirSync(uploadDir, { recursive: true });
         }
