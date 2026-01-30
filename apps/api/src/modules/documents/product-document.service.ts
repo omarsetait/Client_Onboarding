@@ -76,12 +76,20 @@ export class ProductDocumentService {
     };
 
     constructor() {
-        this.documentsDir = path.join(process.cwd(), 'product-documents');
+        // In Vercel (serverless), only /tmp is writable
+        const isVercel = process.env.VERCEL === '1';
+        const baseDir = isVercel ? '/tmp' : process.cwd();
+
+        this.documentsDir = path.join(baseDir, 'product-documents');
 
         // Ensure documents directory exists
         if (!fs.existsSync(this.documentsDir)) {
-            fs.mkdirSync(this.documentsDir, { recursive: true });
-            this.logger.log(`Created product documents directory: ${this.documentsDir}`);
+            try {
+                fs.mkdirSync(this.documentsDir, { recursive: true });
+                this.logger.log(`Created product documents directory: ${this.documentsDir}`);
+            } catch (error) {
+                this.logger.warn(`Failed to create product documents directory: ${error.message}`);
+            }
         }
     }
 
