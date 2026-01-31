@@ -39,5 +39,5 @@ COPY --from=builder /app/packages/database/prisma ./prisma
 ENV NODE_ENV=production
 EXPOSE 3001
 
-# Run migrations then start the app
-CMD npx prisma migrate deploy --schema=./prisma/schema.prisma && node dist/src/main.js
+# Run migrations (continue even if already applied) then start the app
+CMD npx prisma migrate deploy --schema=./prisma/schema.prisma; node dist/src/main.js
