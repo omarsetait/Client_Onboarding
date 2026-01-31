@@ -33,7 +33,11 @@ COPY --from=builder /app/apps/api/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/apps/api/package.json ./
 
+# Copy Prisma schema for migrations
+COPY --from=builder /app/packages/database/prisma ./prisma
+
 ENV NODE_ENV=production
 EXPOSE 3001
 
-CMD ["node", "dist/src/main.js"]
+# Run migrations then start the app
+CMD npx prisma migrate deploy --schema=./prisma/schema.prisma && node dist/src/main.js
