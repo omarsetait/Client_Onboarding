@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
     Box,
-    Paper,
     CircularProgress,
     Alert,
     Typography,
@@ -9,10 +8,8 @@ import {
     Card,
     CardContent,
     CardHeader,
-    Divider,
     List,
     ListItem,
-    ListItemText,
     Chip,
 } from '@mui/material';
 import {
@@ -31,7 +28,6 @@ import {
     subDays,
     isToday,
 } from 'date-fns';
-import { enUS } from 'date-fns/locale';
 
 import { calendarApi } from '../api/client';
 import { CleanCalendarToolbar, CalendarView } from '../components/calendar/CleanCalendarToolbar';
@@ -89,8 +85,6 @@ export function CalendarPage() {
             setDate(new Date());
             return;
         }
-
-        const direction = action === 'NEXT' ? 1 : -1;
 
         switch (view) {
             case 'month':

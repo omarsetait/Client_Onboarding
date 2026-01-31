@@ -23,7 +23,7 @@ import {
 import { useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { proposalApi } from '../api/client';
-import { ProposalTemplate, ProposalSection, getTemplateById, getDefaultTemplate } from '../config/proposalTemplates';
+import { ProposalTemplate, ProposalSection, getDefaultTemplate } from '../config/proposalTemplates';
 import { brandColors } from '../theme';
 
 interface Proposal {
@@ -158,7 +158,7 @@ export default function ProposalViewPage() {
     // I'll inline a simple signature section for manual view.
 
 
-    const renderCover = (section: ProposalSection) => (
+    const renderCover = (_section: ProposalSection) => (
         <Box
             sx={{
                 minHeight: '80vh',

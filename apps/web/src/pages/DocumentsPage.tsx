@@ -6,7 +6,6 @@ import {
     Grid,
     Card,
     CardContent,
-    CardActions,
     Button,
     IconButton,
     TextField,
@@ -60,7 +59,6 @@ export function DocumentsPage() {
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-    const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
 
     useEffect(() => {
         fetchDocuments();
@@ -138,14 +136,12 @@ export function DocumentsPage() {
         );
     });
 
-    const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, doc: Document) => {
+    const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, _doc: Document) => {
         setAnchorEl(event.currentTarget);
-        setSelectedDoc(doc);
     };
 
     const handleMenuClose = () => {
         setAnchorEl(null);
-        setSelectedDoc(null);
     };
 
     // Stats
