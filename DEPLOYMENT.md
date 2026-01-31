@@ -39,7 +39,8 @@ This guide explains how to deploy the TachyHealth Onboarding System to productio
 1. Go to [railway.app](https://railway.app) and sign in
 2. Click **"New Project"** → **"Deploy from GitHub Repo"**
 3. Select your `Client_Onboarding` repository
-4. **Important**: Set **Root Directory** to `apps/api`
+4. **Important**: Leave **Root Directory** as default (`/`), do NOT set it to `apps/api`.
+   - The Dockerfile in the project root handles the monorepo build properly.
 
 ### 2.2 Configure Environment Variables
 
