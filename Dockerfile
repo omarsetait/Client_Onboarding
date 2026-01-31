@@ -34,12 +34,20 @@ FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# Copy the built application and dependencies
+# Copy ALL node_modules from builder
+# This includes the root node_modules (where shared deps like @prisma are)
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy workspace node_modules
+# COPY --from=builder /app/packages/database/node_modules ./packages/database/node_modules (if needed)
+
+# Copy the built application and its specific node_modules
 COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/apps/api/node_modules ./node_modules
+COPY --from=builder /app/apps/api/node_modules ./apps/api/node_modules
 COPY --from=builder /app/apps/api/package.json ./package.json
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+
+# Copy Prisma schema and engines just in case (usually in client, but to be safe)
+COPY --from=builder /app/packages/database/prisma ./prisma
 
 # Set environment
 ENV NODE_ENV=production
