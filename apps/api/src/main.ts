@@ -9,28 +9,22 @@ import { AppModule } from './app.module';
 async function bootstrap() {
     const logger = new Logger('Bootstrap');
 
-    // DEBUG: Log available environment variables (keys only) to debug Vercel issues
-    const envKeys = Object.keys(process.env).sort();
-    logger.debug(`Environment Variables available: ${envKeys.join(', ')}`);
-
-    // Check critical keys
-    if (!process.env.JWT_SECRET) {
-        logger.error('CRITICAL: JWT_SECRET is missing from process.env');
-    } else {
-        logger.log('JWT_SECRET is present (length: ' + process.env.JWT_SECRET.length + ')');
-    }
-
     const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
     // Security
-    // app.use(helmet()); 
-    // Helmet blocks cross-origin images by default. 
-    // For local dev with static files, we might need to adjust or disable contentSecurityPolicy
     app.use(helmet({
         crossOriginResourcePolicy: false,
     }));
+
+    // CORS - allow configured origins
+    const allowedOrigins = [
+        process.env.WEB_URL,
+        'http://localhost:3000',
+        'http://localhost:5173',
+    ].filter((origin): origin is string => Boolean(origin));
+
     app.enableCors({
-        origin: process.env.WEB_URL || 'http://localhost:3000',
+        origin: allowedOrigins,
         credentials: true,
     });
 
@@ -49,11 +43,10 @@ async function bootstrap() {
     // API prefix
     app.setGlobalPrefix('api/v1');
 
-    // Static Assets
-    const isVercel = process.env.VERCEL === '1';
-    const uploadPath = isVercel ? '/tmp/uploads' : join(__dirname, '..', 'uploads');
+    // Static Assets - use /tmp for serverless, local path otherwise
+    const isServerless = process.env.VERCEL === '1' || process.env.RAILWAY_ENVIRONMENT;
+    const uploadPath = isServerless ? '/tmp/uploads' : join(__dirname, '..', 'uploads');
 
-    // In Vercel, static serving from /tmp is limited, but we configure it to prevent crash
     app.useStaticAssets(uploadPath, {
         prefix: '/uploads/',
     });
@@ -75,11 +68,14 @@ async function bootstrap() {
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('api/docs', app, document);
 
-    const port = process.env.API_PORT || 3001;
-    await app.listen(port);
+    // Railway provides PORT env var, fallback to 3001 for local dev
+    const port = process.env.PORT || process.env.API_PORT || 3001;
 
-    console.log(`🚀 TachyHealth API running on: http://localhost:${port}`);
-    console.log(`📚 Swagger docs: http://localhost:${port}/api/docs`);
+    // Bind to 0.0.0.0 for container deployments (Railway, Docker)
+    await app.listen(port, '0.0.0.0');
+
+    logger.log(`🚀 TachyHealth API running on port ${port}`);
+    logger.log(`📚 Swagger docs available at /api/docs`);
 }
 
 bootstrap();

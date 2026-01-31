@@ -2,7 +2,8 @@ import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'ax
 import { store } from '../store';
 import { updateTokens, logout } from '../store/slices/authSlice';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/v1';
+// API URL: Use environment variable (set in Vercel) or fallback for local dev
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api/v1';
 
 // Create axios instance
 export const api: AxiosInstance = axios.create({

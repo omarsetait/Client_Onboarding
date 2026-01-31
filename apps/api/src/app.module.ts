@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, Logger } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { BullModule } from '@nestjs/bull';
 import { AuthModule } from './modules/auth/auth.module';
@@ -20,6 +20,28 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { ProposalModule } from './modules/proposal/proposal.module';
 
+// Conditionally load Bull module only if Redis is configured
+const conditionalImports = [];
+const redisHost = process.env.REDIS_HOST || process.env.REDIS_URL;
+
+if (redisHost) {
+    conditionalImports.push(
+        BullModule.forRootAsync({
+            imports: [ConfigModule],
+            useFactory: (configService: ConfigService) => ({
+                redis: configService.get('REDIS_URL') || {
+                    host: configService.get('REDIS_HOST', 'localhost'),
+                    port: configService.get('REDIS_PORT', 6379),
+                },
+            }),
+            inject: [ConfigService],
+        }),
+    );
+} else {
+    const logger = new Logger('AppModule');
+    logger.warn('Redis not configured - background jobs will be disabled');
+}
+
 @Module({
     imports: [
         // Configuration
@@ -28,17 +50,8 @@ import { ProposalModule } from './modules/proposal/proposal.module';
             envFilePath: ['.env', '.env.local'],
         }),
 
-        // Bull Queue for background jobs
-        BullModule.forRootAsync({
-            imports: [ConfigModule],
-            useFactory: (configService: ConfigService) => ({
-                redis: {
-                    host: configService.get('REDIS_HOST', 'localhost'),
-                    port: configService.get('REDIS_PORT', 6379),
-                },
-            }),
-            inject: [ConfigService],
-        }),
+        // Conditional Bull Queue (only if Redis is available)
+        ...conditionalImports,
 
         // Database
         PrismaModule,
