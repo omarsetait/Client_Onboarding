@@ -26,8 +26,8 @@ RUN npx prisma generate
 WORKDIR /app/apps/api
 RUN pnpm run build
 
-# Verify the build output exists
-RUN ls -la dist/ && ls -la dist/main.js
+# Verify the build output exists (main.js is in dist/src/)
+RUN ls -la dist/src/main.js
 
 # Production stage
 FROM node:20-alpine AS runner
@@ -47,5 +47,5 @@ ENV NODE_ENV=production
 # Expose port (Railway will override this via PORT env var)
 EXPOSE 3001
 
-# Start the application
-CMD ["node", "dist/main.js"]
+# Start the application - main.js is in dist/src/ folder
+CMD ["node", "dist/src/main.js"]
