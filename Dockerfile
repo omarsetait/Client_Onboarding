@@ -1,6 +1,9 @@
-# Build stage
-FROM node:20-alpine AS builder
+# Build stage - use slim (Debian) instead of alpine for Prisma OpenSSL compatibility
+FROM node:20-slim AS builder
 WORKDIR /app
+
+# Install OpenSSL and other required libs for Prisma
+RUN apt-get update && apt-get install -y openssl libssl-dev ca-certificates && rm -rf /var/lib/apt/lists/*
 
 RUN npm install -g pnpm@latest
 
@@ -19,8 +22,11 @@ RUN cd packages/database && npx prisma generate
 RUN cd apps/api && pnpm run build
 
 # Production stage
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 WORKDIR /app
+
+# Install OpenSSL for Prisma runtime
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
 # Copy built output
 COPY --from=builder /app/apps/api/dist ./dist
