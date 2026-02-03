@@ -30,7 +30,7 @@ import {
 } from 'date-fns';
 import { GlassCard } from '../components/common/GlassCard';
 
-const API_BASE = (typeof window !== 'undefined' && (window as any).__ENV__?.VITE_API_URL) || 'http://localhost:3001/api/v1';
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3001/api/v1';
 
 interface TimeSlot {
     start: string; // ISO string
