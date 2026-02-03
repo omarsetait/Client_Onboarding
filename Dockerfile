@@ -36,7 +36,11 @@ COPY --from=builder /app/apps/api/package.json ./
 # Copy Prisma schema for migrations
 COPY --from=builder /app/packages/database/prisma ./prisma
 
+# Copy product documents for email attachments
+COPY --from=builder /app/apps/api/product-documents ./product-documents
+
 ENV NODE_ENV=production
+ENV PORT=3001
 EXPOSE 3001
 
 # Run migrations (continue even if already applied) then start the app

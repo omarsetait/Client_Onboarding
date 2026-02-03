@@ -3,6 +3,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { EmailService } from '../communication/email.service';
 import { ProductDocumentService, ProductType } from '../documents/product-document.service';
 import { AgentOrchestrator } from '../ai-agents/orchestrator.service';
+import { ConfigService } from '@nestjs/config';
 
 export interface LeadIntakeDto {
     firstName: string;
@@ -36,6 +37,7 @@ export class LeadIntakeService {
         private readonly emailService: EmailService,
         private readonly productDocumentService: ProductDocumentService,
         private readonly agentOrchestrator: AgentOrchestrator,
+        private readonly configService: ConfigService,
     ) { }
 
     /**
@@ -182,6 +184,7 @@ export class LeadIntakeService {
         leadId: string,
         hasCompanyProfile: boolean
     ): string {
+        const webUrl = this.configService.get<string>('WEB_URL') || 'http://localhost:3000';
         const productList = dto.productsOfInterest
             .map(p => {
                 const info = this.productDocumentService.getProduct(p);
@@ -238,7 +241,7 @@ export class LeadIntakeService {
             <p>Based on your interest in <strong>${dto.productsOfInterest.join(', ')}</strong>, we believe our solutions can significantly impact your workflow.</p>
 
             <div style="text-align: center; margin: 30px 0;">
-                <a href="http://localhost:3000/book-demo?leadId=${leadId}" 
+                <a href="${webUrl}/book-demo?leadId=${leadId}" 
                    style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-block;">
                     Schedule Your Discovery Call
                 </a>
