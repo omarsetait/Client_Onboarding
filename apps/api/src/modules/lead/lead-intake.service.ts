@@ -44,10 +44,12 @@ export class LeadIntakeService {
      * Process a new lead from the public contact form
      */
     async processLeadIntake(dto: LeadIntakeDto): Promise<LeadIntakeResult> {
-        this.logger.log(`Processing lead intake for ${dto.email}`);
+        this.logger.log(`📥 [INTAKE_START] Email: ${dto.email} | Company: ${dto.companyName} | Products: ${dto.productsOfInterest.join(', ')}`);
+        const startTime = Date.now();
 
         try {
             // 1. Create the lead record
+            this.logger.debug(`📝 [INTAKE_STEP_1] Creating lead record`);
             const lead = await this.prisma.lead.create({
                 data: {
                     email: dto.email,
@@ -65,18 +67,21 @@ export class LeadIntakeService {
                 },
             });
 
-            this.logger.log(`Created lead: ${lead.id}`);
+            this.logger.log(`✅ [LEAD_CREATED] LeadId: ${lead.id} | Email: ${dto.email}`);
 
             // 1b. Trigger AI Pipeline (Research -> Qualification)
+            this.logger.debug(`📝 [INTAKE_STEP_2] Triggering AI pipeline`);
             try {
                 this.agentOrchestrator.processNewLead(lead.id).catch(err => {
-                    this.logger.error(`Failed to trigger AI pipeline: ${err.message}`, err.stack);
+                    this.logger.error(`❌ [PIPELINE_ASYNC_FAILED] LeadId: ${lead.id} | Error: ${err.message}`);
                 });
+                this.logger.log(`🚀 [PIPELINE_TRIGGERED] LeadId: ${lead.id}`);
             } catch (e) {
-                this.logger.error('Failed to trigger AI pipeline', e);
+                this.logger.error(`❌ [PIPELINE_TRIGGER_FAILED] LeadId: ${lead.id}`, e);
             }
 
             // 2. Log the lead creation activity
+            this.logger.debug(`📝 [INTAKE_STEP_3] Logging activity`);
             await this.prisma.activity.create({
                 data: {
                     leadId: lead.id,
@@ -91,9 +96,11 @@ export class LeadIntakeService {
             });
 
             // 3. Get product documents for selected products
+            this.logger.debug(`📝 [INTAKE_STEP_4] Getting product documents`);
             const productDocuments = this.productDocumentService.getDocumentsForProducts(
                 dto.productsOfInterest
             );
+            this.logger.debug(`📎 [DOCUMENTS_FOUND] Count: ${productDocuments.length} | Products: ${dto.productsOfInterest.join(', ')}`);
 
             // Get Company Profile (Always included)
             const companyProfile = this.productDocumentService.getCompanyProfilePath();

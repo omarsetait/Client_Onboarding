@@ -14,19 +14,20 @@ export class LeadService {
         @InjectQueue('agent-tasks') private readonly agentQueue: Queue,
     ) { }
 
-    async create(dto: CreateLeadDto, source: string = 'api') {
-        // Check for duplicate within 24 hours
+    async create(dto: CreateLeadDto, source: string = 'WEBSITE') {
+        this.logger.log(`👤 [LEAD_CREATE_START] Email: ${dto.email} | Company: ${dto.companyName} | Source: ${source}`);
+        const startTime = Date.now();
+
+        // Check for existing lead with same email
         const existingLead = await this.prisma.lead.findFirst({
             where: {
                 email: dto.email.toLowerCase(),
-                createdAt: {
-                    gte: new Date(Date.now() - 24 * 60 * 60 * 1000),
-                },
                 deletedAt: null,
             },
         });
 
         if (existingLead) {
+            this.logger.log(`♻️ [LEAD_DUPLICATE] Existing lead found: ${existingLead.id} | Email: ${dto.email} | Updating instead of creating`);
             // Update existing lead with new data instead of creating duplicate
             return this.update(existingLead.id, {
                 ...dto,
@@ -36,6 +37,7 @@ export class LeadService {
             });
         }
 
+        this.logger.debug(`📝 [LEAD_CREATE_STEP_1] Creating new lead record`);
         const lead = await this.prisma.lead.create({
             data: {
                 email: dto.email.toLowerCase(),
@@ -67,8 +69,10 @@ export class LeadService {
                 },
             },
         });
+        this.logger.log(`✅ [LEAD_CREATED] LeadId: ${lead.id} | Email: ${dto.email} | Company: ${dto.companyName}`);
 
         // Log activity
+        this.logger.debug(`📝 [LEAD_CREATE_STEP_2] Logging activity`);
         await this.prisma.activity.create({
             data: {
                 leadId: lead.id,
@@ -79,14 +83,17 @@ export class LeadService {
         });
 
         // AUTO-TRIGGER: Queue for AI processing pipeline
+        this.logger.debug(`📝 [LEAD_CREATE_STEP_3] Queueing for AI pipeline`);
         try {
-            this.logger.log(`🔄 Attempting to queue lead ${lead.id} for AI processing...`);
+            this.logger.log(`🔄 [PIPELINE_QUEUE_START] LeadId: ${lead.id}`);
             const job = await this.agentQueue.add('new-lead-pipeline', { leadId: lead.id });
-            this.logger.log(`✅ Lead ${lead.id} queued successfully. Job ID: ${job.id}`);
+            this.logger.log(`✅ [PIPELINE_QUEUE_SUCCESS] LeadId: ${lead.id} | JobId: ${job.id}`);
         } catch (error) {
-            this.logger.error(`❌ Failed to queue lead ${lead.id} for processing:`, error);
+            this.logger.error(`❌ [PIPELINE_QUEUE_FAILED] LeadId: ${lead.id} | Error: ${error instanceof Error ? error.message : 'Unknown'}`);
         }
 
+        const duration = Date.now() - startTime;
+        this.logger.log(`✅ [LEAD_CREATE_COMPLETE] LeadId: ${lead.id} | Duration: ${duration}ms`);
         return lead;
     }
 

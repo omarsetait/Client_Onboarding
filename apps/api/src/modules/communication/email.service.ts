@@ -47,26 +47,39 @@ export class EmailService {
     }
 
     async sendEmail(options: EmailOptions, leadId?: string): Promise<EmailResult> {
+        const startTime = Date.now();
+        const attachmentCount = options.attachments?.length || 0;
+        this.logger.log(`📧 [EMAIL_SEND_START] To: ${options.to} | Subject: ${options.subject?.substring(0, 50)} | LeadId: ${leadId || 'N/A'} | Attachments: ${attachmentCount}`);
+
         const resendApiKey = this.configService.get<string>('RESEND_API_KEY');
         const sendgridApiKey = this.configService.get<string>('SENDGRID_API_KEY');
 
         if (!resendApiKey && !sendgridApiKey) {
-            this.logger.warn('No email provider configured, simulating email send');
+            this.logger.warn('⚠️ [EMAIL_NO_PROVIDER] No email provider configured, simulating email send');
             return this.simulateSend(options, leadId);
         }
+
+        const provider = resendApiKey ? 'Resend' : 'SendGrid';
+        this.logger.debug(`📤 [EMAIL_PROVIDER] Using: ${provider}`);
 
         try {
             const response = resendApiKey
                 ? await this.sendViaResend(options, resendApiKey)
                 : await this.sendViaSendGrid(options, sendgridApiKey as string);
 
+            const duration = Date.now() - startTime;
+
             // Log the communication
             if (leadId) {
                 await this.logCommunication(leadId, options, response.messageId);
+                this.logger.debug(`📝 [EMAIL_LOGGED] LeadId: ${leadId} | MessageId: ${response.messageId}`);
             }
 
+            this.logger.log(`✅ [EMAIL_SEND_SUCCESS] To: ${options.to} | MessageId: ${response.messageId} | Duration: ${duration}ms`);
             return response;
         } catch (error) {
+            const duration = Date.now() - startTime;
+            this.logger.error(`❌ [EMAIL_SEND_FAILED] To: ${options.to} | Error: ${error instanceof Error ? error.message : 'Unknown'} | Duration: ${duration}ms`);
             this.logger.error('Failed to send email', error);
             return {
                 success: false,

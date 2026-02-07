@@ -25,14 +25,20 @@ export class CalendarService {
         notes?: string;
         userId?: string;
     }) {
+        this.logger.log(`📅 [MEETING_OUTCOME_START] MeetingId: ${params.meetingId} | Status: ${params.status} | UserId: ${params.userId || 'system'}`);
+        const startTime = Date.now();
+
         const meeting = await this.prisma.meeting.findUnique({
             where: { id: params.meetingId },
             include: { lead: true },
         });
 
         if (!meeting) {
+            this.logger.warn(`⚠️ [MEETING_NOT_FOUND] MeetingId: ${params.meetingId}`);
             throw new NotFoundException('Meeting not found');
         }
+
+        this.logger.debug(`📊 [MEETING_DATA] MeetingId: ${params.meetingId} | LeadId: ${meeting.leadId} | Title: ${meeting.title}`);
 
         const updated = await this.prisma.meeting.update({
             where: { id: params.meetingId },
@@ -41,6 +47,7 @@ export class CalendarService {
                 outcome: params.notes || `Marked as ${params.status}`,
             },
         });
+        this.logger.debug(`📝 [MEETING_UPDATED] MeetingId: ${params.meetingId} | New Status: ${params.status}`);
 
         await this.prisma.activity.create({
             data: {
@@ -53,8 +60,10 @@ export class CalendarService {
                 automated: !params.userId,
             },
         });
+        this.logger.debug(`📝 [ACTIVITY_LOGGED] LeadId: ${meeting.leadId} | Type: Meeting ${params.status}`);
 
         if (params.status === 'COMPLETED' && meeting.leadId) {
+            this.logger.log(`🎉 [MEETING_COMPLETED] LeadId: ${meeting.leadId} | Updating stage to PROPOSAL_SENT`);
             await this.leadService.updateStage(
                 meeting.leadId,
                 {
@@ -74,11 +83,13 @@ export class CalendarService {
         }
 
         if (params.status === 'RESCHEDULED' && meeting.lead) {
+            this.logger.log(`📅 [MEETING_RESCHEDULED] LeadId: ${meeting.leadId} | Sending reschedule email`);
             const rescheduleLink = this.buildRescheduleLink(meeting.id, meeting.lead.email);
             await this.sendRescheduleEmail(meeting.lead, meeting, rescheduleLink);
         }
 
         if (params.status === 'NO_SHOW' && meeting.lead) {
+            this.logger.log(`❌ [MEETING_NO_SHOW] LeadId: ${meeting.leadId} | Starting no-show workflow`);
             await this.noShowDetection.startNoShowWorkflow({
                 meetingId: meeting.id,
                 leadId: meeting.leadId,
@@ -87,6 +98,8 @@ export class CalendarService {
             });
         }
 
+        const duration = Date.now() - startTime;
+        this.logger.log(`✅ [MEETING_OUTCOME_COMPLETE] MeetingId: ${params.meetingId} | Status: ${params.status} | Duration: ${duration}ms`);
         return updated;
     }
 
@@ -161,17 +174,24 @@ export class CalendarService {
      * Book a meeting publicly
      */
     async bookPublicMeeting(leadId: string, startTime: string, notes?: string) {
+        this.logger.log(`📅 [PUBLIC_BOOKING_START] LeadId: ${leadId} | StartTime: ${startTime}`);
+        const overallStartTime = Date.now();
+
         const start = new Date(startTime);
         const end = new Date(start.getTime() + 60 * 60 * 1000); // 60 min default
 
         // 1. Find a usable sales rep (Round robin or random)
+        this.logger.debug(`🔍 [BOOKING_STEP_1] Finding available sales rep for timeslot`);
         const salesRep = await this.findAvailableRep(start, end);
 
         if (!salesRep) {
+            this.logger.error(`❌ [BOOKING_FAILED] No sales reps available | LeadId: ${leadId} | Time: ${startTime}`);
             throw new Error('No sales representatives available at this time');
         }
+        this.logger.log(`✅ [REP_ASSIGNED] Rep: ${salesRep.firstName} ${salesRep.lastName} (${salesRep.email}) | LeadId: ${leadId}`);
 
         // 2. Assign lead to the rep (if not already assigned)
+        this.logger.debug(`📝 [BOOKING_STEP_2] Updating lead stage and assignment`);
         const lead = await this.prisma.lead.update({
             where: { id: leadId },
             data: {
@@ -179,10 +199,12 @@ export class CalendarService {
                 assignedToId: salesRep.id
             },
         });
+        this.logger.debug(`✅ [LEAD_UPDATED] LeadId: ${leadId} | Stage: MEETING_SCHEDULED`);
 
         const description = 'Self-scheduled discovery call via website.' + (notes ? `\n\nClient Notes: ${notes}` : '');
 
         // 3. Create the meeting
+        this.logger.debug(`📝 [BOOKING_STEP_3] Creating meeting record`);
         const meeting = await this.prisma.meeting.create({
             data: {
                 title: 'Discovery Call',
@@ -198,8 +220,10 @@ export class CalendarService {
                 ]
             },
         });
+        this.logger.log(`✅ [MEETING_CREATED] MeetingId: ${meeting.id} | LeadId: ${leadId} | Time: ${start.toISOString()}`);
 
         // 4. Log activity
+        this.logger.debug(`📝 [BOOKING_STEP_4] Logging activity`);
         await this.prisma.activity.create({
             data: {
                 leadId: leadId,
@@ -211,6 +235,7 @@ export class CalendarService {
         });
 
         // 5. Send Confirmation Email with ICS
+        this.logger.debug(`📧 [BOOKING_STEP_5] Sending confirmation email`);
         try {
             const icsContent = this.generateIcsContent(meeting, salesRep);
             const teamsLink = meeting.videoLink || '#';
@@ -255,12 +280,14 @@ export class CalendarService {
                 trackClicks: true,
                 metadata: { type: 'booking_confirmation', meetingId: meeting.id }
             }, leadId);
-            this.logger.log(`Confirmation email sent to ${lead.email}`);
+            this.logger.log(`✅ [CONFIRMATION_EMAIL_SENT] To: ${lead.email} | MeetingId: ${meeting.id}`);
         } catch (emailErr) {
-            this.logger.error('Failed to send confirmation email', emailErr);
+            this.logger.error(`❌ [CONFIRMATION_EMAIL_FAILED] LeadId: ${leadId} | Error: ${emailErr instanceof Error ? emailErr.message : 'Unknown'}`);
             // Don't fail the request if email fails, just log it
         }
 
+        const totalDuration = Date.now() - overallStartTime;
+        this.logger.log(`✅ [PUBLIC_BOOKING_COMPLETE] MeetingId: ${meeting.id} | LeadId: ${leadId} | Duration: ${totalDuration}ms`);
         return meeting;
     }
 

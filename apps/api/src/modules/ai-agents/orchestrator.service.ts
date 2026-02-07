@@ -56,8 +56,13 @@ export class AgentOrchestrator {
         input: unknown,
         context: AgentContext,
     ): Promise<AgentResult> {
+        const startTime = Date.now();
+        this.logger.log(`🚀 [AGENT_START] Agent: ${agentName} | Lead: ${context.leadId || 'N/A'}`);
+        this.logger.debug(`📥 [AGENT_INPUT] Agent: ${agentName} | Input: ${JSON.stringify(input)?.substring(0, 500)}`);
+
         const agent = this.getAgentByName(agentName);
         if (!agent) {
+            this.logger.error(`❌ [AGENT_ERROR] Unknown agent: ${agentName}`);
             return {
                 success: false,
                 action: 'error',
@@ -67,6 +72,10 @@ export class AgentOrchestrator {
 
         try {
             const result = await agent.execute(input, context);
+            const duration = Date.now() - startTime;
+
+            this.logger.log(`✅ [AGENT_COMPLETE] Agent: ${agentName} | Success: ${result.success} | Duration: ${duration}ms`);
+            this.logger.debug(`📤 [AGENT_OUTPUT] Agent: ${agentName} | Action: ${result.action} | Reasoning: ${result.reasoning?.substring(0, 200)}`);
 
             // Log the agent action
             if (context.leadId) {
@@ -75,6 +84,7 @@ export class AgentOrchestrator {
 
             // If agent specifies a next agent, queue it
             if (result.success && result.nextAgent) {
+                this.logger.log(`🔄 [AGENT_HANDOFF] From: ${agentName} -> To: ${result.nextAgent} | Lead: ${context.leadId}`);
                 await this.agentQueue.add('agent-handoff', {
                     agent: result.nextAgent,
                     input: result.data,
@@ -84,6 +94,8 @@ export class AgentOrchestrator {
 
             return result;
         } catch (error) {
+            const duration = Date.now() - startTime;
+            this.logger.error(`❌ [AGENT_FAILED] Agent: ${agentName} | Duration: ${duration}ms | Error: ${error instanceof Error ? error.message : 'Unknown'}`);
             this.logger.error(`Agent ${agentName} failed:`, error);
             return {
                 success: false,
@@ -97,6 +109,9 @@ export class AgentOrchestrator {
      * Get the coordinator's recommendation for a lead
      */
     async getRecommendation(leadId: string): Promise<AgentResult> {
+        this.logger.log(`📋 [RECOMMENDATION_START] Lead: ${leadId}`);
+        const startTime = Date.now();
+
         const lead = await this.prisma.lead.findUnique({
             where: { id: leadId },
             include: {
@@ -107,31 +122,49 @@ export class AgentOrchestrator {
         });
 
         if (!lead) {
+            this.logger.warn(`⚠️ [RECOMMENDATION_FAILED] Lead not found: ${leadId}`);
             return { success: false, action: 'error', error: 'Lead not found' };
         }
 
-        return this.coordinatorAgent.execute(lead, { leadId });
+        this.logger.debug(`📊 [RECOMMENDATION_DATA] Lead: ${leadId} | Activities: ${lead.activities.length} | Meetings: ${lead.meetings.length} | Communications: ${lead.communications.length}`);
+
+        const result = await this.coordinatorAgent.execute(lead, { leadId });
+        const duration = Date.now() - startTime;
+        this.logger.log(`📋 [RECOMMENDATION_COMPLETE] Lead: ${leadId} | Duration: ${duration}ms | Success: ${result.success}`);
+        return result;
     }
 
     /**
      * Score a lead using the qualification agent
      */
     async scoreLead(leadId: string): Promise<AgentResult> {
+        this.logger.log(`🎯 [SCORING_START] Lead: ${leadId}`);
+        const startTime = Date.now();
+
         const lead = await this.prisma.lead.findUnique({
             where: { id: leadId },
         });
 
         if (!lead) {
+            this.logger.warn(`⚠️ [SCORING_FAILED] Lead not found: ${leadId}`);
             return { success: false, action: 'error', error: 'Lead not found' };
         }
 
-        return this.qualificationAgent.execute(lead, { leadId });
+        this.logger.debug(`📊 [SCORING_DATA] Lead: ${leadId} | Company: ${lead.companyName} | Current Score: ${lead.score}`);
+
+        const result = await this.qualificationAgent.execute(lead, { leadId });
+        const duration = Date.now() - startTime;
+        this.logger.log(`🎯 [SCORING_COMPLETE] Lead: ${leadId} | Duration: ${duration}ms | New Score: ${(result.data as any)?.totalScore || 'N/A'}`);
+        return result;
     }
 
     /**
      * Generate a personalized email for a lead
      */
     async generateEmail(leadId: string, type: string): Promise<AgentResult> {
+        this.logger.log(`📧 [EMAIL_GEN_START] Lead: ${leadId} | Type: ${type}`);
+        const startTime = Date.now();
+
         const lead = await this.prisma.lead.findUnique({
             where: { id: leadId },
             include: {
@@ -140,10 +173,16 @@ export class AgentOrchestrator {
         });
 
         if (!lead) {
+            this.logger.warn(`⚠️ [EMAIL_GEN_FAILED] Lead not found: ${leadId}`);
             return { success: false, action: 'error', error: 'Lead not found' };
         }
 
-        return this.communicationAgent.execute({ lead, type: type as 'acknowledgment' | 'follow_up' | 'demo_offer' | 'case_study' | 'break_up' | 'custom' }, { leadId });
+        this.logger.debug(`📊 [EMAIL_GEN_DATA] Lead: ${leadId} | Previous Emails: ${lead.communications.length}`);
+
+        const result = await this.communicationAgent.execute({ lead, type: type as 'acknowledgment' | 'follow_up' | 'demo_offer' | 'case_study' | 'break_up' | 'custom' }, { leadId });
+        const duration = Date.now() - startTime;
+        this.logger.log(`📧 [EMAIL_GEN_COMPLETE] Lead: ${leadId} | Type: ${type} | Duration: ${duration}ms | Success: ${result.success}`);
+        return result;
     }
 
     private getAgentByName(name: string) {
