@@ -72,20 +72,36 @@ Provide structured enrichment data that can be stored and used by sales reps.`,
         );
     }
 
-    async execute(input: Lead, context: AgentContext): Promise<AgentResult> {
+    async execute(input: Lead | null, context: AgentContext): Promise<AgentResult> {
         this.log('Researching lead', { leadId: context.leadId });
+
+        // Fetch lead from database if input is null
+        let lead = input;
+        if (!lead && context.leadId) {
+            lead = await this.prisma.lead.findUnique({
+                where: { id: context.leadId },
+            });
+        }
+
+        if (!lead) {
+            return {
+                success: false,
+                action: 'error',
+                error: 'Lead not found',
+            };
+        }
 
         const prompt = `
 Research and enrich this lead with relevant business intelligence:
 
 CURRENT LEAD DATA:
-- Name: ${input.firstName} ${input.lastName}
-- Email: ${input.email}
-- Company: ${input.companyName}
-- Job Title: ${input.jobTitle || 'Not provided'}
-- Industry: ${input.industry || 'Not provided'}
-- Country: ${input.country || 'Not provided'}
-- Website: ${input.companyDomain || 'Not provided'}
+- Name: ${lead.firstName} ${lead.lastName}
+- Email: ${lead.email}
+- Company: ${lead.companyName}
+- Job Title: ${lead.jobTitle || 'Not provided'}
+- Industry: ${lead.industry || 'Not provided'}
+- Country: ${lead.country || 'Not provided'}
+- Website: ${lead.companyDomain || 'Not provided'}
 
 Based on the company name, email domain, job title, and any other available signals,
 provide enriched data. Use your knowledge to infer reasonable values, but be honest
