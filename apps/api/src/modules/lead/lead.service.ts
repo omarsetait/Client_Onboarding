@@ -80,10 +80,11 @@ export class LeadService {
 
         // AUTO-TRIGGER: Queue for AI processing pipeline
         try {
-            await this.agentQueue.add('new-lead-pipeline', { leadId: lead.id });
-            this.logger.log(`Lead ${lead.id} queued for AI processing pipeline`);
+            this.logger.log(`🔄 Attempting to queue lead ${lead.id} for AI processing...`);
+            const job = await this.agentQueue.add('new-lead-pipeline', { leadId: lead.id });
+            this.logger.log(`✅ Lead ${lead.id} queued successfully. Job ID: ${job.id}`);
         } catch (error) {
-            this.logger.error(`Failed to queue lead ${lead.id} for processing`, error);
+            this.logger.error(`❌ Failed to queue lead ${lead.id} for processing:`, error);
         }
 
         return lead;

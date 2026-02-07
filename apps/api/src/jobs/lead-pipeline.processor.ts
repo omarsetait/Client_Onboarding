@@ -1,5 +1,5 @@
-import { Processor, Process, OnQueueFailed } from '@nestjs/bull';
-import { Logger } from '@nestjs/common';
+import { Processor, Process, OnQueueFailed, OnQueueActive, OnQueueCompleted } from '@nestjs/bull';
+import { Logger, OnModuleInit } from '@nestjs/common';
 import { Job } from 'bull';
 import { PrismaService } from '../prisma/prisma.service';
 import { AgentOrchestrator } from '../modules/ai-agents/orchestrator.service';
@@ -18,7 +18,7 @@ interface NoShowFollowUpJob {
 }
 
 @Processor('agent-tasks')
-export class LeadPipelineProcessor {
+export class LeadPipelineProcessor implements OnModuleInit {
     private readonly logger = new Logger(LeadPipelineProcessor.name);
 
     constructor(
@@ -27,6 +27,20 @@ export class LeadPipelineProcessor {
         private readonly emailService: EmailService,
         private readonly templateService: EmailTemplateService,
     ) { }
+
+    onModuleInit() {
+        this.logger.log('🚀 LeadPipelineProcessor initialized - ready to process jobs');
+    }
+
+    @OnQueueActive()
+    onActive(job: Job) {
+        this.logger.log(`📦 Job ${job.id} started: ${job.name} with data: ${JSON.stringify(job.data)}`);
+    }
+
+    @OnQueueCompleted()
+    onCompleted(job: Job, result: any) {
+        this.logger.log(`✅ Job ${job.id} completed: ${job.name}`);
+    }
 
     @Process('process-lead')
     async handleProcessLead(job: Job<LeadProcessJob>) {
