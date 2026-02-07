@@ -42,6 +42,18 @@ export class LeadPipelineProcessor implements OnModuleInit {
         this.logger.log(`✅ Job ${job.id} completed: ${job.name}`);
     }
 
+    @Process('agent-handoff')
+    async handleAgentHandoff(job: Job<{ agent: string; input: unknown; context: { leadId?: string } }>) {
+        const { agent, input, context } = job.data;
+        this.logger.log(`🔄 Agent handoff to ${agent} for lead ${context.leadId}`);
+
+        try {
+            await this.orchestrator.executeAgent(agent, input, context);
+        } catch (error) {
+            this.logger.error(`Agent handoff to ${agent} failed:`, error);
+        }
+    }
+
     @Process('process-lead')
     async handleProcessLead(job: Job<LeadProcessJob>) {
         const { leadId, step } = job.data;
