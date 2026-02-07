@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { BaseAgent, AgentContext, AgentResult } from '../base.agent';
 import { Lead, Communication } from '@prisma/client';
+import { PrismaService } from '../../../prisma/prisma.service';
 
 interface EmailContent {
     subject: string;
@@ -19,7 +20,10 @@ interface CommunicationInput {
 
 @Injectable()
 export class CommunicationAgent extends BaseAgent {
-    constructor(configService: ConfigService) {
+    constructor(
+        configService: ConfigService,
+        private readonly prisma: PrismaService,
+    ) {
         super(
             configService,
             'CommunicationAgent',
@@ -54,13 +58,32 @@ www.tachyhealth.com`,
         );
     }
 
-    async execute(input: CommunicationInput, context: AgentContext): Promise<AgentResult> {
-        this.log(`Generating ${input.type} email`, { leadId: context.leadId });
+    async execute(input: CommunicationInput | any, context: AgentContext): Promise<AgentResult> {
+        // Handle agent-handoff case where input doesn't have lead object
+        let lead = input?.lead;
+        let type = input?.type || 'follow_up'; // Default to follow_up for handoffs
 
-        const { lead, type, customPrompt } = input;
+        // If no lead in input, fetch from database
+        if (!lead && context.leadId) {
+            lead = await this.prisma.lead.findUnique({
+                where: { id: context.leadId },
+                include: { communications: { take: 5, orderBy: { createdAt: 'desc' } } },
+            });
+        }
+
+        if (!lead) {
+            return {
+                success: false,
+                action: 'error',
+                error: 'Lead not found',
+            };
+        }
+
+        this.log(`Generating ${type} email`, { leadId: context.leadId });
+
         const previousEmails = lead.communications?.slice(0, 3) || [];
 
-        const prompt = this.buildPrompt(lead, type, previousEmails, customPrompt);
+        const prompt = this.buildPrompt(lead, type, previousEmails, input?.customPrompt);
 
         try {
             const email = await this.chatWithJson<EmailContent>(
