@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
     Box,
     CircularProgress,
@@ -9,7 +10,7 @@ import {
     CardContent,
     CardHeader,
     List,
-    ListItem,
+    ListItemButton,
     Chip,
 } from '@mui/material';
 import {
@@ -33,6 +34,7 @@ import { calendarApi } from '../api/client';
 import { CleanCalendarToolbar, CalendarView } from '../components/calendar/CleanCalendarToolbar';
 
 export function CalendarPage() {
+    const navigate = useNavigate();
     const [meetings, setMeetings] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -185,14 +187,19 @@ export function CalendarPage() {
                                         {dayMeetings.length > 0 ? (
                                             <List dense disablePadding>
                                                 {dayMeetings.map(meeting => (
-                                                    <ListItem
+                                                    <ListItemButton
                                                         key={meeting.id}
+                                                        onClick={() => meeting.leadId && navigate(`/leads/${meeting.leadId}`)}
                                                         sx={{
                                                             bgcolor: 'action.hover',
                                                             borderRadius: 1,
                                                             mb: 0.5,
                                                             flexDirection: 'column',
-                                                            alignItems: 'flex-start'
+                                                            alignItems: 'flex-start',
+                                                            cursor: meeting.leadId ? 'pointer' : 'default',
+                                                            '&:hover': {
+                                                                bgcolor: 'action.selected',
+                                                            }
                                                         }}
                                                     >
                                                         <Box sx={{ display: 'flex', width: '100%', justifyContent: 'space-between', mb: 0.5 }}>
@@ -214,7 +221,7 @@ export function CalendarPage() {
                                                                 with {meeting.lead.firstName}
                                                             </Typography>
                                                         )}
-                                                    </ListItem>
+                                                    </ListItemButton>
                                                 ))}
                                             </List>
                                         ) : (

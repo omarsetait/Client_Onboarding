@@ -250,8 +250,11 @@ export class CalendarService {
                         content: Buffer.from(icsContent),
                         contentType: 'text/calendar'
                     }
-                ]
-            });
+                ],
+                trackOpens: true,
+                trackClicks: true,
+                metadata: { type: 'booking_confirmation', meetingId: meeting.id }
+            }, leadId);
             this.logger.log(`Confirmation email sent to ${lead.email}`);
         } catch (emailErr) {
             this.logger.error('Failed to send confirmation email', emailErr);
